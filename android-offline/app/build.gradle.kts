@@ -29,8 +29,8 @@ android {
         applicationId = "com.fanfan.liferestart.offline"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0-offline"
+        versionCode = 2
+        versionName = "1.1.0-online-creator"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -43,7 +43,7 @@ android {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            resValue("string", "app_name", "人生重开·系统版 Debug")
+            resValue("string", "app_name", "人生重开·AI共创版 Debug")
         }
         release {
             isMinifyEnabled = false
@@ -52,7 +52,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "app_name", "人生重开·系统版")
+            resValue("string", "app_name", "人生重开·AI共创版")
         }
     }
 

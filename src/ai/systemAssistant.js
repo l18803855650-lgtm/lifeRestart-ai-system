@@ -1,12 +1,21 @@
 import { formatTrajectoryLines } from './formatTrajectoryLines.js';
+import { buildSystemMessages } from './systemPrompt.js';
+import {
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    hasAndroidMiniMaxBridge,
+    isAppAssetsOrigin,
+    loadAiConfig,
+    requestMiniMaxChat,
+    saveAiConfig,
+} from './nativeMiniMax.js';
 
 function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-function isOfflineAndroidBuild() {
-    if (typeof window === 'undefined' || typeof location === 'undefined') return false;
-    return location.protocol === 'file:' || location.hostname === 'appassets.androidplatform.net';
+function compactText(text = '') {
+    return `${text}`.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
 
 function summaryToList() {
@@ -31,6 +40,7 @@ class LifeSystemAssistant {
     #mounted = false;
     #busy = false;
     #elements = {};
+    #settingsOpen = false;
     #state = {
         talents: [],
         propertyAllocate: null,
@@ -39,6 +49,13 @@ class LifeSystemAssistant {
         summary: [],
         autoIntroDone: false,
         phase: 'idle',
+        aiConfig: {
+            mode: 'loading',
+            hasApiKey: false,
+            apiKeyMasked: '',
+            baseUrl: DEFAULT_BASE_URL,
+            model: DEFAULT_MODEL,
+        },
     };
 
     mount() {
@@ -48,10 +65,12 @@ class LifeSystemAssistant {
         this.#createDom();
         this.#bindEvents();
         this.#render();
+        void this.#hydrateAiConfig();
     }
 
     resetRun({ talents = [], propertyAllocate = null, startContent = [] } = {}) {
         this.#state = {
+            ...this.#state,
             talents: clone(talents),
             propertyAllocate: clone(propertyAllocate),
             recentTrajectory: [],
@@ -73,10 +92,7 @@ class LifeSystemAssistant {
             this.#appendMessage('meta', `开局记录：\n${startLines.join('\n')}`);
         }
         this.#render();
-        if (isOfflineAndroidBuild()) {
-            this.#appendMessage('assistant', '当前是离线单机 APK。为了不依赖服务器，这版先关闭了 AI 在线对话；系统玩法和数值都能本地玩。');
-            return;
-        }
+        this.#announceModeIfNeeded();
         this.#autoIntro();
     }
 
@@ -97,7 +113,7 @@ class LifeSystemAssistant {
         this.#state.phase = 'summary';
         this.#state.talents = clone(talents);
         this.#state.summary = summaryToList();
-        this.#appendMessage('meta', `本局已结算。你可以让系统复盘这一生，或者追问下一局怎么配。`);
+        this.#appendMessage('meta', '本局已结算。你可以让系统复盘这一生，或者追问下一局怎么配。');
         this.#render();
     }
 
@@ -108,41 +124,13 @@ class LifeSystemAssistant {
             return;
         }
 
-        if (isOfflineAndroidBuild()) {
-            this.#appendMessage('assistant', '这版 APK 是纯离线单机版，不依赖我的服务器，所以 AI 对话默认关闭。后面如果你要，我可以再做一版“你自己填 MiniMax Key”的联网版。');
-            return;
-        }
-
         const text = userMessage.trim();
         if (showUser && text) this.#appendMessage('user', text);
 
         this.#busy = true;
         this.#render();
         try {
-            const response = await fetch('/api/system-dialogue', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    intent,
-                    userMessage: text,
-                    history: this.#state.messages
-                        .filter(({ role }) => role === 'user' || role === 'assistant')
-                        .slice(-8)
-                        .map(({ role, content }) => ({ role, content })),
-                    context: {
-                        phase: this.#state.phase,
-                        system: clone(core.system),
-                        properties: clone(core.propertys),
-                        talents: clone(this.#state.talents),
-                        recentTrajectory: clone(this.#state.recentTrajectory),
-                        summary: clone(this.#state.summary),
-                    },
-                }),
-            });
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || '系统暂时离线');
-            }
+            const data = await this.#requestReply({ intent, userMessage: text });
             this.#appendMessage('assistant', data.reply);
         } catch (error) {
             this.#appendMessage('assistant', `系统连接失败：${error.message}`);
@@ -152,8 +140,79 @@ class LifeSystemAssistant {
         }
     }
 
+    async #requestReply({ intent, userMessage }) {
+        const aiConfig = this.#state.aiConfig;
+        const history = this.#state.messages
+            .filter(({ role }) => role === 'user' || role === 'assistant')
+            .slice(-8)
+            .map(({ role, content }) => ({ role, content }));
+        const context = {
+            phase: this.#state.phase,
+            system: clone(core.system),
+            properties: clone(core.propertys),
+            talents: clone(this.#state.talents),
+            recentTrajectory: clone(this.#state.recentTrajectory),
+            summary: clone(this.#state.summary),
+        };
+
+        if (aiConfig.mode === 'android-direct') {
+            if (!aiConfig.hasApiKey) {
+                throw new Error('请先点右上角“设置”，填入你自己的 MiniMax API Key');
+            }
+            const messages = buildSystemMessages({ intent, userMessage, history, context });
+            const response = await requestMiniMaxChat({
+                baseUrl: aiConfig.baseUrl,
+                body: {
+                    model: aiConfig.model,
+                    temperature: 1,
+                    n: 1,
+                    max_tokens: 520,
+                    messages,
+                },
+            });
+            return {
+                reply: compactText(response?.choices?.[0]?.message?.content || '') || '系统暂时没有给出有效回复，你可以换个问法再试一次。',
+            };
+        }
+
+        if (isAppAssetsOrigin() && !hasAndroidMiniMaxBridge()) {
+            throw new Error('当前 APK 缺少原生直连桥，无法联网调用 AI');
+        }
+
+        const res = await fetch('/api/system-dialogue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ intent, userMessage, history, context }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+            throw new Error(data.error || '系统暂时离线');
+        }
+        return data;
+    }
+
+    async #hydrateAiConfig() {
+        const config = await loadAiConfig();
+        this.#state.aiConfig = config;
+        this.#syncSettingsForm();
+        this.#render();
+        this.#announceModeIfNeeded();
+        if (core?.system && (config.mode !== 'android-direct' || config.hasApiKey)) {
+            this.#autoIntro();
+        }
+    }
+
+    #announceModeIfNeeded() {
+        const { mode, hasApiKey } = this.#state.aiConfig;
+        if (mode === 'android-direct' && !hasApiKey && !this.#state.messages.some(({ content }) => content.includes('MiniMax API Key'))) {
+            this.#appendMessage('assistant', '这版是手机直连 MiniMax 的联网共创版，不走我的服务器。先点右上角“设置”，填入你自己的 MiniMax API Key，就能边玩边跟系统对话。');
+        }
+    }
+
     #autoIntro() {
         if (this.#state.autoIntroDone || !core.system) return;
+        if (this.#state.aiConfig.mode === 'loading') return;
+        if (this.#state.aiConfig.mode === 'android-direct' && !this.#state.aiConfig.hasApiKey) return;
         this.#state.autoIntroDone = true;
         setTimeout(() => {
             this.ask({ intent: 'intro', userMessage: '', showUser: false });
@@ -163,7 +222,7 @@ class LifeSystemAssistant {
     #appendMessage(role, content) {
         const item = { role, content, at: Date.now() };
         this.#state.messages.push(item);
-        this.#state.messages = this.#state.messages.slice(-24);
+        this.#state.messages = this.#state.messages.slice(-36);
         if (!this.#elements.messages) return;
         const node = document.createElement('div');
         node.className = `life-ai-msg ${role}`;
@@ -173,14 +232,30 @@ class LifeSystemAssistant {
     }
 
     #bindEvents() {
-        const { toggle, close, send, textarea, quicks } = this.#elements;
+        const {
+            toggle,
+            close,
+            send,
+            textarea,
+            quicks,
+            settingsBtn,
+            saveSettings,
+            clearApiKey,
+        } = this.#elements;
         toggle.addEventListener('click', () => this.#togglePanel(true));
         close.addEventListener('click', () => this.#togglePanel(false));
+        settingsBtn.addEventListener('click', () => this.#toggleSettings());
+        saveSettings.addEventListener('click', () => {
+            void this.#saveSettings();
+        });
+        clearApiKey.addEventListener('click', () => {
+            void this.#clearApiKey();
+        });
         send.addEventListener('click', () => {
             const text = textarea.value.trim();
             if (!text) return;
             textarea.value = '';
-            this.ask({ userMessage: text });
+            void this.ask({ userMessage: text });
         });
         textarea.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -190,33 +265,93 @@ class LifeSystemAssistant {
         });
         quicks.querySelectorAll('button').forEach(button => {
             button.addEventListener('click', () => {
-                this.ask({ intent: button.dataset.intent, userMessage: '', showUser: false });
+                void this.ask({ intent: button.dataset.intent, userMessage: '', showUser: false });
             });
         });
+    }
+
+    async #saveSettings() {
+        const apiKey = this.#elements.apiKey.value.trim();
+        const baseUrl = this.#elements.baseUrl.value.trim() || DEFAULT_BASE_URL;
+        const model = this.#elements.model.value.trim() || DEFAULT_MODEL;
+        this.#elements.settingsHint.textContent = '保存中…';
+        try {
+            this.#state.aiConfig = await saveAiConfig({
+                ...(apiKey ? { apiKey } : {}),
+                baseUrl,
+                model,
+            });
+            this.#elements.apiKey.value = '';
+            this.#elements.settingsHint.textContent = this.#state.aiConfig.mode === 'android-direct'
+                ? '已保存到手机本地'
+                : '浏览器调试模式下只保存了 baseUrl/model';
+            this.#syncSettingsForm();
+            this.#render();
+            this.#appendMessage('meta', `AI 设置已更新：${this.#state.aiConfig.model} / ${this.#state.aiConfig.mode === 'android-direct' ? '手机直连' : '本地代理'}`);
+            if (core.system && this.#state.aiConfig.hasApiKey && !this.#state.autoIntroDone) {
+                this.#autoIntro();
+            }
+        } catch (error) {
+            this.#elements.settingsHint.textContent = `保存失败：${error.message}`;
+        }
+    }
+
+    async #clearApiKey() {
+        this.#elements.settingsHint.textContent = '清空中…';
+        try {
+            this.#state.aiConfig = await saveAiConfig({ clearApiKey: true });
+            this.#elements.apiKey.value = '';
+            this.#elements.settingsHint.textContent = '已清空保存的 API Key';
+            this.#syncSettingsForm();
+            this.#render();
+        } catch (error) {
+            this.#elements.settingsHint.textContent = `清空失败：${error.message}`;
+        }
     }
 
     #togglePanel(open) {
         this.#elements.panel.classList.toggle('open', open);
     }
 
+    #toggleSettings(force) {
+        this.#settingsOpen = typeof force === 'boolean' ? force : !this.#settingsOpen;
+        this.#elements.settings.classList.toggle('open', this.#settingsOpen);
+    }
+
+    #syncSettingsForm() {
+        const config = this.#state.aiConfig;
+        if (!this.#elements.apiKey) return;
+        this.#elements.baseUrl.value = config.baseUrl || DEFAULT_BASE_URL;
+        this.#elements.model.value = config.model || DEFAULT_MODEL;
+        this.#elements.apiKey.placeholder = config.hasApiKey
+            ? `已保存：${config.apiKeyMasked || '••••••••'}`
+            : '填入你自己的 MiniMax API Key';
+    }
+
     #render() {
         if (!this.#elements.status) return;
         const system = core.system;
+        const aiConfig = this.#state.aiConfig;
+        const canUseAi = aiConfig.mode !== 'loading' && (aiConfig.mode !== 'android-direct' || aiConfig.hasApiKey);
+        const shouldDisableAsk = this.#busy || !canUseAi;
+        const modeText = aiConfig.mode === 'android-direct'
+            ? (aiConfig.hasApiKey ? '手机直连 MiniMax' : '待配置 MiniMax Key')
+            : (aiConfig.mode === 'loading' ? '读取 AI 配置…' : '本地代理模式');
+
         this.#elements.status.textContent = system
-            ? `${system.name} · Lv.${system.level}${isOfflineAndroidBuild() ? ' · 离线版' : ''}`
-            : (isOfflineAndroidBuild() ? '离线单机版' : '未绑定系统');
-        const disabled = this.#busy || isOfflineAndroidBuild();
-        this.#elements.send.disabled = disabled;
-        this.#elements.send.textContent = isOfflineAndroidBuild()
-            ? '离线版'
-            : (this.#busy ? '系统思考中…' : '发送');
+            ? `${system.name} · Lv.${system.level}`
+            : '未绑定系统';
+        this.#elements.sub.textContent = `${aiConfig.model || DEFAULT_MODEL} / ${modeText}`;
+        this.#elements.send.disabled = shouldDisableAsk;
+        this.#elements.send.textContent = this.#busy ? '系统思考中…' : '发送';
         this.#elements.quicks.querySelectorAll('button').forEach(button => {
-            button.disabled = disabled;
+            button.disabled = shouldDisableAsk;
         });
-        this.#elements.textarea.disabled = isOfflineAndroidBuild();
-        this.#elements.textarea.placeholder = isOfflineAndroidBuild()
-            ? '离线单机版已关闭 AI 在线对话'
+        this.#elements.textarea.disabled = shouldDisableAsk;
+        this.#elements.textarea.placeholder = aiConfig.mode === 'android-direct' && !aiConfig.hasApiKey
+            ? '先点设置，填入你自己的 MiniMax API Key'
             : '问系统一句，比如：我这局该走修仙还是神豪？';
+        this.#elements.settingsBtn.style.display = aiConfig.mode === 'android-direct' ? 'inline-flex' : 'none';
     }
 
     #createDom() {
@@ -228,22 +363,45 @@ class LifeSystemAssistant {
                 <div class="life-ai-header">
                     <div>
                         <strong>系统对话</strong>
-                        <div class="life-ai-sub">MiniMax M2.7 highspeed / 离线 APK 自动关闭</div>
+                        <div class="life-ai-sub"></div>
                     </div>
                     <div class="life-ai-header-right">
                         <span class="life-ai-status"></span>
+                        <button class="life-ai-settings-btn">设置</button>
                         <button class="life-ai-close">×</button>
                     </div>
+                </div>
+                <div class="life-ai-settings">
+                    <label>
+                        <span>MiniMax API Key</span>
+                        <input class="life-ai-api-key" type="password" autocomplete="off" />
+                    </label>
+                    <label>
+                        <span>Base URL</span>
+                        <input class="life-ai-base-url" type="text" autocomplete="off" />
+                    </label>
+                    <label>
+                        <span>Model</span>
+                        <input class="life-ai-model" type="text" autocomplete="off" />
+                    </label>
+                    <div class="life-ai-settings-actions">
+                        <button class="life-ai-save-settings">保存设置</button>
+                        <button class="life-ai-clear-key">清空 Key</button>
+                    </div>
+                    <div class="life-ai-settings-hint">你的 Key 只保存在你自己的手机本地。</div>
                 </div>
                 <div class="life-ai-quicks">
                     <button data-intent="intro">系统播报</button>
                     <button data-intent="advice">下一步建议</button>
                     <button data-intent="commentary">锐评这局</button>
                     <button data-intent="summary">总结复盘</button>
+                    <button data-intent="create-event">共创新事件</button>
+                    <button data-intent="create-talent">共创新天赋</button>
+                    <button data-intent="create-system">共创新能力</button>
                 </div>
                 <div class="life-ai-messages"></div>
                 <div class="life-ai-compose">
-                    <textarea placeholder="问系统一句，比如：我这局该走修仙还是神豪？"></textarea>
+                    <textarea></textarea>
                     <button class="life-ai-send">发送</button>
                 </div>
             </div>
@@ -255,6 +413,15 @@ class LifeSystemAssistant {
             panel: root.querySelector('.life-ai-panel'),
             close: root.querySelector('.life-ai-close'),
             status: root.querySelector('.life-ai-status'),
+            sub: root.querySelector('.life-ai-sub'),
+            settingsBtn: root.querySelector('.life-ai-settings-btn'),
+            settings: root.querySelector('.life-ai-settings'),
+            apiKey: root.querySelector('.life-ai-api-key'),
+            baseUrl: root.querySelector('.life-ai-base-url'),
+            model: root.querySelector('.life-ai-model'),
+            saveSettings: root.querySelector('.life-ai-save-settings'),
+            clearApiKey: root.querySelector('.life-ai-clear-key'),
+            settingsHint: root.querySelector('.life-ai-settings-hint'),
             quicks: root.querySelector('.life-ai-quicks'),
             messages: root.querySelector('.life-ai-messages'),
             textarea: root.querySelector('textarea'),
@@ -285,8 +452,8 @@ class LifeSystemAssistant {
                 cursor: pointer;
             }
             #life-system-assistant .life-ai-panel {
-                width: min(380px, calc(100vw - 24px));
-                height: min(560px, calc(100vh - 88px));
+                width: min(420px, calc(100vw - 24px));
+                height: min(640px, calc(100vh - 88px));
                 margin-top: 12px;
                 background: rgba(15, 20, 36, 0.94);
                 border: 1px solid rgba(255, 255, 255, 0.12);
@@ -298,7 +465,7 @@ class LifeSystemAssistant {
             }
             #life-system-assistant .life-ai-panel.open {
                 display: grid;
-                grid-template-rows: auto auto 1fr auto;
+                grid-template-rows: auto auto auto 1fr auto;
             }
             #life-system-assistant .life-ai-header {
                 display: flex;
@@ -309,23 +476,62 @@ class LifeSystemAssistant {
                 border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             }
             #life-system-assistant .life-ai-sub,
-            #life-system-assistant .life-ai-status {
+            #life-system-assistant .life-ai-status,
+            #life-system-assistant .life-ai-settings-hint {
                 font-size: 12px;
                 color: rgba(255, 255, 255, 0.65);
             }
             #life-system-assistant .life-ai-header-right {
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                gap: 8px;
             }
-            #life-system-assistant .life-ai-close {
-                width: 28px;
-                height: 28px;
+            #life-system-assistant .life-ai-close,
+            #life-system-assistant .life-ai-settings-btn,
+            #life-system-assistant .life-ai-save-settings,
+            #life-system-assistant .life-ai-clear-key {
                 border-radius: 999px;
                 border: 0;
                 cursor: pointer;
                 background: rgba(255, 255, 255, 0.08);
                 color: #fff;
+                padding: 8px 12px;
+            }
+            #life-system-assistant .life-ai-close {
+                width: 28px;
+                height: 28px;
+                padding: 0;
+            }
+            #life-system-assistant .life-ai-settings {
+                display: none;
+                padding: 12px 16px;
+                gap: 10px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(255, 255, 255, 0.04);
+            }
+            #life-system-assistant .life-ai-settings.open {
+                display: grid;
+            }
+            #life-system-assistant .life-ai-settings label {
+                display: grid;
+                gap: 6px;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.82);
+            }
+            #life-system-assistant .life-ai-settings input,
+            #life-system-assistant textarea {
+                resize: none;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(7, 10, 19, 0.72);
+                color: #fff;
+                padding: 10px 12px;
+                outline: none;
+            }
+            #life-system-assistant .life-ai-settings-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
             }
             #life-system-assistant .life-ai-quicks {
                 display: flex;
@@ -385,16 +591,10 @@ class LifeSystemAssistant {
                 border-top: 1px solid rgba(255, 255, 255, 0.08);
             }
             #life-system-assistant textarea {
-                resize: none;
-                min-height: 78px;
-                border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                background: rgba(7, 10, 19, 0.72);
-                color: #fff;
-                padding: 10px 12px;
-                outline: none;
+                min-height: 88px;
             }
-            #life-system-assistant button:disabled {
+            #life-system-assistant button:disabled,
+            #life-system-assistant textarea:disabled {
                 opacity: 0.55;
                 cursor: not-allowed;
             }
