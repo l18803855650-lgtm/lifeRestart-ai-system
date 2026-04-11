@@ -4,6 +4,11 @@ function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
+function isOfflineAndroidBuild() {
+    if (typeof window === 'undefined' || typeof location === 'undefined') return false;
+    return location.protocol === 'file:' || location.hostname === 'appassets.androidplatform.net';
+}
+
 function summaryToList() {
     const summary = core.summary;
     return [
@@ -68,6 +73,10 @@ class LifeSystemAssistant {
             this.#appendMessage('meta', `开局记录：\n${startLines.join('\n')}`);
         }
         this.#render();
+        if (isOfflineAndroidBuild()) {
+            this.#appendMessage('assistant', '当前是离线单机 APK。为了不依赖服务器，这版先关闭了 AI 在线对话；系统玩法和数值都能本地玩。');
+            return;
+        }
         this.#autoIntro();
     }
 
@@ -96,6 +105,11 @@ class LifeSystemAssistant {
         if (this.#busy) return;
         if (!core.system) {
             this.#appendMessage('assistant', '先开始一局人生，系统才能真正接管并开口。');
+            return;
+        }
+
+        if (isOfflineAndroidBuild()) {
+            this.#appendMessage('assistant', '这版 APK 是纯离线单机版，不依赖我的服务器，所以 AI 对话默认关闭。后面如果你要，我可以再做一版“你自己填 MiniMax Key”的联网版。');
             return;
         }
 
@@ -189,13 +203,20 @@ class LifeSystemAssistant {
         if (!this.#elements.status) return;
         const system = core.system;
         this.#elements.status.textContent = system
-            ? `${system.name} · Lv.${system.level}`
-            : '未绑定系统';
-        this.#elements.send.disabled = this.#busy;
-        this.#elements.send.textContent = this.#busy ? '系统思考中…' : '发送';
+            ? `${system.name} · Lv.${system.level}${isOfflineAndroidBuild() ? ' · 离线版' : ''}`
+            : (isOfflineAndroidBuild() ? '离线单机版' : '未绑定系统');
+        const disabled = this.#busy || isOfflineAndroidBuild();
+        this.#elements.send.disabled = disabled;
+        this.#elements.send.textContent = isOfflineAndroidBuild()
+            ? '离线版'
+            : (this.#busy ? '系统思考中…' : '发送');
         this.#elements.quicks.querySelectorAll('button').forEach(button => {
-            button.disabled = this.#busy;
+            button.disabled = disabled;
         });
+        this.#elements.textarea.disabled = isOfflineAndroidBuild();
+        this.#elements.textarea.placeholder = isOfflineAndroidBuild()
+            ? '离线单机版已关闭 AI 在线对话'
+            : '问系统一句，比如：我这局该走修仙还是神豪？';
     }
 
     #createDom() {
@@ -207,7 +228,7 @@ class LifeSystemAssistant {
                 <div class="life-ai-header">
                     <div>
                         <strong>系统对话</strong>
-                        <div class="life-ai-sub">MiniMax M2.7 highspeed</div>
+                        <div class="life-ai-sub">MiniMax M2.7 highspeed / 离线 APK 自动关闭</div>
                     </div>
                     <div class="life-ai-header-right">
                         <span class="life-ai-status"></span>
