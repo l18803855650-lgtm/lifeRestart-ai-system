@@ -168,6 +168,7 @@ class App {
         await $ui.setLoading(UI.pages.LOADING);
         await $ui.switchView(UI.pages.LOADING);
         await core.initial(
+            this.#language,
             dataSet => Laya.promises.loader.load(`data/${this.#language}/${dataSet}.json`, null, Laya.Loader.JSON),
             dataSet => Laya.promises.loader.load(`data/${dataSet}.json`, null, Laya.Loader.JSON),
         );

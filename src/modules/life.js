@@ -4,14 +4,17 @@ import * as fCondition from '../functions/condition.js';
 import Property from './property.js';
 import Event from './event.js';
 import Talent from './talent.js';
+import System from './system.js';
 import Achievement from './achievement.js';
 import Character from './character.js';
+import systemsData from '../data/systems.js';
 
 class Life {
     constructor() {
         this.#property = new Property(this);
         this.#event = new Event(this);
         this.#talent = new Talent(this);
+        this.#system = new System(this);
         this.#achievement = new Achievement(this);
         this.#character = new Character(this);
     }
@@ -19,6 +22,7 @@ class Life {
     Module = {
         PROPERTY: 'PROPERTY',
         TALENT: 'TALENT',
+        SYSTEM: 'SYSTEM',
         EVENT: 'EVENT',
         ACHIEVEMENT: 'ACHIEVEMENT',
         CHARACTER: 'CHARACTER',
@@ -32,6 +36,7 @@ class Life {
     #property;
     #event;
     #talent;
+    #system;
     #achievement;
     #character;
     #triggerTalents;
@@ -42,7 +47,7 @@ class Life {
     #specialThanks;
     #initialData;
 
-    async initial(i18nLoad, commonLoad) {
+    async initial(language, i18nLoad, commonLoad) {
         const [age, talents, events, achievements, characters, specialThanks] = await Promise.all([
             i18nLoad('age'),
             i18nLoad('talents'),
@@ -59,6 +64,7 @@ class Life {
             [this.PropertyTypes.TTLT]: this.#talent.initial({talents}),
         };
         this.#property.initial({age, total});
+        this.#system.initial({systems: systemsData[language] || {}});
         this.#character.initial({characters});
     }
 
@@ -86,6 +92,7 @@ class Life {
             case this.Module.CHARACTER: return this.#character;
             case this.Module.EVENT: return this.#event;
             case this.Module.PROPERTY: return this.#property;
+            case this.Module.SYSTEM: return this.#system;
             case this.Module.TALENT: return this.#talent;
             default: return null;
         }
@@ -118,9 +125,11 @@ class Life {
             this.#initialData[key] = util.clone(allocation[key]);
         }
         this.#property.restart(this.#initialData);
-        this.doTalent()
+        const startTalentContent = this.doTalent();
+        const systemContent = this.#system.start({ allocation });
         this.#property.restartLastStep();
         this.#achievement.achieve(this.AchievementOpportunity.START);
+        return [systemContent, startTalentContent].flat();
     }
 
     getPropertyPoints() {
@@ -136,10 +145,11 @@ class Life {
 
         const talentContent = this.doTalent(talent);
         const eventContent = this.doEvent(this.random(event));
+        const systemContent = this.#system.next(age);
 
         const isEnd = this.#property.isEnd();
 
-        const content = [talentContent, eventContent].flat();
+        const content = [talentContent, eventContent, systemContent].flat();
         this.#achievement.achieve(this.AchievementOpportunity.TRAJECTORY);
         return { age, content, isEnd };
     }
@@ -258,6 +268,12 @@ class Life {
             case 'strength': return this.#property.get(this.PropertyTypes.STR)
             case 'money': return this.#property.get(this.PropertyTypes.MNY)
             case 'spirit': return this.#property.get(this.PropertyTypes.SPR)
+            case 'systemlevel': return this.#property.get(this.PropertyTypes.SYSLV)
+            case 'systempoints': return this.#property.get(this.PropertyTypes.PTS)
+            case 'fate': return this.#property.get(this.PropertyTypes.FATE)
+            case 'reputation': return this.#property.get(this.PropertyTypes.REP)
+            case 'energy': return this.#property.get(this.PropertyTypes.ENG)
+            case 'system': return this.#system.snapshot?.name || key
             default: return key
         }
     }
@@ -316,6 +332,7 @@ class Life {
     get propertyAllocateLimit() { return util.clone(this.#propertyAllocateLimit); }
 
     get propertys() { return this.#property.getPropertys(); }
+    get system() { return this.#system.snapshot; }
     get times() { return this.#property.get(this.PropertyTypes.TMS) || 0; }
     set times(v) {
         this.#property.set(this.PropertyTypes.TMS, v);

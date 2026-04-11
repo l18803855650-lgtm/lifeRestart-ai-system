@@ -3,6 +3,18 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
         super();
         this.listSelectedTalents.renderHandler = Laya.Handler.create(this, this.renderTalent, null, false);
         this.btnAgain.on(Laya.Event.CLICK, this, this.onAgain);
+
+        this.labSystemInfo = new Laya.Label();
+        this.labSystemInfo.left = 60;
+        this.labSystemInfo.right = 60;
+        this.labSystemInfo.y = 1218;
+        this.labSystemInfo.height = 96;
+        this.labSystemInfo.font = '方正像素12';
+        this.labSystemInfo.fontSize = 28;
+        this.labSystemInfo.color = '#8fe7ff';
+        this.labSystemInfo.leading = 8;
+        this.labSystemInfo.wordWrap = true;
+        this.addChild(this.labSystemInfo);
     }
 
     #selectedTalent;
@@ -15,8 +27,9 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
     }
 
     init({talents, enableExtend}) {
-        const {summary, lastExtendTalent} = core;
+        const {summary, lastExtendTalent, system} = core;
         this.#enableExtend = enableExtend;
+        this.labSystemInfo.text = this.formatSystemInfo(system);
 
         const gradeFilters = $ui.common.filter;
         const gradeColors = $ui.common.grade;
@@ -77,6 +90,21 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
             this.#selectedTalent = lastExtendTalent;
         }
         this.listSelectedTalents.array = talents;
+    }
+
+    formatSystemInfo(system) {
+        if(!system) {
+            return `${$lang.UI_System_Current}${$lang.UI_Colon}${$lang.UI_System_None}`;
+        }
+        const abilityNames = system.abilities.map(({name})=>name);
+        const abilityText = abilityNames.length > 4
+            ? `${abilityNames.slice(0, 4).join(' / ')}...`
+            : (abilityNames.join(' / ') || $lang.UI_System_None);
+        return [
+            `${$lang.UI_System_Current}${$lang.UI_Colon}${system.name} · Lv.${system.level} · ${$lang.UI_System_Points}${$lang.UI_Colon}${system.points} · ${$lang.UI_System_Fate}${$lang.UI_Colon}${system.fate} · ${$lang.UI_System_Reputation}${$lang.UI_Colon}${system.reputation}`,
+            `${$lang.UI_System_Abilities}${$lang.UI_Colon}${abilityText}`,
+            `${$lang.UI_System_Goal}${$lang.UI_Colon}${system.nextGoal || $lang.UI_System_None}`,
+        ].join('\n');
     }
 
     renderTalent(box) {

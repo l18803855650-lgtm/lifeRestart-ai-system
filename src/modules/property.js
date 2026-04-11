@@ -3,18 +3,25 @@ class Property {
         this.#system = system;
     }
 
-    TYPES = {
-        // 本局
-        AGE: "AGE", // 年龄 age AGE
-        CHR: "CHR", // 颜值 charm CHR
-        INT: "INT", // 智力 intelligence INT
-        STR: "STR", // 体质 strength STR
-        MNY: "MNY", // 家境 money MNY
-        SPR: "SPR", // 快乐 spirit SPR
-        LIF: "LIF", // 生命 life LIFE
-        TLT: "TLT", // 天赋 talent TLT
-        EVT: "EVT", // 事件 event EVT
-        TMS: "TMS", // 次数 times TMS
+        TYPES = {
+            // 本局
+            AGE: "AGE", // 年龄 age AGE
+            CHR: "CHR", // 颜值 charm CHR
+            INT: "INT", // 智力 intelligence INT
+            STR: "STR", // 体质 strength STR
+            MNY: "MNY", // 家境 money MNY
+            SPR: "SPR", // 快乐 spirit SPR
+            SYS: "SYS", // 当前系统 current system SYS
+            SYSLV: "SYSLV", // 系统等级 system level SYSLV
+            PTS: "PTS", // 系统点 system points PTS
+            FATE: "FATE", // 气运 fate FATE
+            REP: "REP", // 声望 reputation REP
+            ENG: "ENG", // 能量 energy ENG
+            ABI: "ABI", // 系统能力 abilities ABI
+            LIF: "LIF", // 生命 life LIFE
+            TLT: "TLT", // 天赋 talent TLT
+            EVT: "EVT", // 事件 event EVT
+            TMS: "TMS", // 次数 times TMS
 
         // Auto calc
         LAGE: "LAGE", // 最低年龄 Low Age
@@ -116,6 +123,13 @@ class Property {
             [this.TYPES.STR]: 0,
             [this.TYPES.MNY]: 0,
             [this.TYPES.SPR]: 0,
+            [this.TYPES.SYS]: null,
+            [this.TYPES.SYSLV]: 0,
+            [this.TYPES.PTS]: 0,
+            [this.TYPES.FATE]: 0,
+            [this.TYPES.REP]: 0,
+            [this.TYPES.ENG]: 0,
+            [this.TYPES.ABI]: [],
 
             [this.TYPES.LIF]: 1,
 
@@ -164,6 +178,13 @@ class Property {
             case this.TYPES.STR:
             case this.TYPES.MNY:
             case this.TYPES.SPR:
+            case this.TYPES.SYS:
+            case this.TYPES.SYSLV:
+            case this.TYPES.PTS:
+            case this.TYPES.FATE:
+            case this.TYPES.REP:
+            case this.TYPES.ENG:
+            case this.TYPES.ABI:
             case this.TYPES.LIF:
             case this.TYPES.TLT:
             case this.TYPES.EVT:
@@ -256,6 +277,13 @@ class Property {
             case this.TYPES.STR:
             case this.TYPES.MNY:
             case this.TYPES.SPR:
+            case this.TYPES.SYS:
+            case this.TYPES.SYSLV:
+            case this.TYPES.PTS:
+            case this.TYPES.FATE:
+            case this.TYPES.REP:
+            case this.TYPES.ENG:
+            case this.TYPES.ABI:
             case this.TYPES.LIF:
             case this.TYPES.TLT:
             case this.TYPES.EVT:
@@ -280,6 +308,13 @@ class Property {
             [this.TYPES.STR]: this.get(this.TYPES.STR),
             [this.TYPES.MNY]: this.get(this.TYPES.MNY),
             [this.TYPES.SPR]: this.get(this.TYPES.SPR),
+            [this.TYPES.SYS]: this.get(this.TYPES.SYS),
+            [this.TYPES.SYSLV]: this.get(this.TYPES.SYSLV),
+            [this.TYPES.PTS]: this.get(this.TYPES.PTS),
+            [this.TYPES.FATE]: this.get(this.TYPES.FATE),
+            [this.TYPES.REP]: this.get(this.TYPES.REP),
+            [this.TYPES.ENG]: this.get(this.TYPES.ENG),
+            [this.TYPES.ABI]: this.get(this.TYPES.ABI),
         });
     }
 
@@ -296,9 +331,15 @@ class Property {
             case this.TYPES.STR:
             case this.TYPES.MNY:
             case this.TYPES.SPR:
+            case this.TYPES.SYSLV:
+            case this.TYPES.PTS:
+            case this.TYPES.FATE:
+            case this.TYPES.REP:
+            case this.TYPES.ENG:
             case this.TYPES.LIF:
                 this.hl(prop, this.#data[prop] += Number(value));
                 return;
+            case this.TYPES.ABI:
             case this.TYPES.TLT:
             case this.TYPES.EVT:
                 const v = this.#data[prop];

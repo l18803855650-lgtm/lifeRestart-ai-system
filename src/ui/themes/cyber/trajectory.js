@@ -76,7 +76,10 @@ export default class CyberTrajectory extends ui.view.CyberTheme.CyberTrajectoryU
         this.#trajectoryItems = [];
         this.#isEnd = false;
         this.#talents = talents;
-        core.start(propertyAllocate);
+        const startContent = core.start(propertyAllocate);
+        if(startContent?.length) {
+            this.renderTrajectory($lang.UI_System_Init, startContent);
+        }
         this.updateProperty();
         this.onNext();
     }
@@ -128,12 +131,23 @@ export default class CyberTrajectory extends ui.view.CyberTheme.CyberTrajectoryU
         const item = this.#createTrajectoryItem();
         item.labAge.text = ''+age;
         item.labContent.text = content.map(
-            ({type, description, grade, name, postEvent}) => {
+            ({type, description, grade, name, postEvent, kind}) => {
                 switch(type) {
                     case 'TLT':
                         return `天赋【${name}】发动：${description}`;
                     case 'EVT':
                         return description + (postEvent?`\n${postEvent}`:'');
+                    case core.PropertyTypes.SYS:
+                        switch(kind) {
+                            case 'ability':
+                                return $_.format($lang.F_SystemAbilityUnlock, {name, description});
+                            case 'abilityTick':
+                                return $_.format($lang.F_SystemAbilityTick, {name, description});
+                            case 'milestone':
+                                return $_.format($lang.F_SystemProgress, {name, description});
+                            default:
+                                return $_.format($lang.F_SystemAwaken, {name, description});
+                        }
                 }
             }
         ).join('\n');

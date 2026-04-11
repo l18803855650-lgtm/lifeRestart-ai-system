@@ -4,6 +4,18 @@ export default class Summary extends ui.view.DefaultTheme.SummaryUI {
         this.listSummary.renderHandler = Laya.Handler.create(this, this.renderSummary, null, false);
         this.listSelectedTalents.renderHandler = Laya.Handler.create(this, this.renderTalent, null, false);
         this.btnAgain.on(Laya.Event.CLICK, this, this.onAgain);
+
+        this.labSystemInfo = new Laya.Label();
+        this.labSystemInfo.left = 20;
+        this.labSystemInfo.right = 20;
+        this.labSystemInfo.top = 84;
+        this.labSystemInfo.height = 92;
+        this.labSystemInfo.fontSize = 24;
+        this.labSystemInfo.color = '#dddddd';
+        this.labSystemInfo.leading = 6;
+        this.labSystemInfo.wordWrap = true;
+        this.selectedTalents.addChild(this.labSystemInfo);
+        this.listSelectedTalents.top = 190;
     }
 
     #selectedTalent;
@@ -16,8 +28,9 @@ export default class Summary extends ui.view.DefaultTheme.SummaryUI {
     }
 
     init({talents, enableExtend}) {
-        const {summary, lastExtendTalent} = core;
+        const {summary, lastExtendTalent, system} = core;
         this.#enableExtend = enableExtend;
+        this.labSystemInfo.text = this.formatSystemInfo(system);
 
         this.listSummary.array = [
             [core.PropertyTypes.HCHR, $lang.UI_Property_Charm],
@@ -47,6 +60,22 @@ export default class Summary extends ui.view.DefaultTheme.SummaryUI {
         }
         this.listSelectedTalents.array = talents;
     }
+
+    formatSystemInfo(system) {
+        if(!system) {
+            return `${$lang.UI_System_Current}${$lang.UI_Colon}${$lang.UI_System_None}`;
+        }
+        const abilityNames = system.abilities.map(({name})=>name);
+        const abilityText = abilityNames.length > 4
+            ? `${abilityNames.slice(0, 4).join(' / ')}...`
+            : (abilityNames.join(' / ') || $lang.UI_System_None);
+        return [
+            `${$lang.UI_System_Current}${$lang.UI_Colon}${system.name} · Lv.${system.level} · ${$lang.UI_System_Points}${$lang.UI_Colon}${system.points} · ${$lang.UI_System_Fate}${$lang.UI_Colon}${system.fate} · ${$lang.UI_System_Reputation}${$lang.UI_Colon}${system.reputation}`,
+            `${$lang.UI_System_Abilities}${$lang.UI_Colon}${abilityText}`,
+            `${$lang.UI_System_Goal}${$lang.UI_Colon}${system.nextGoal || $lang.UI_System_None}`,
+        ].join('\n');
+    }
+
     renderSummary(box) {
         const {label, grade} = box.dataSource;
         box.label = label;

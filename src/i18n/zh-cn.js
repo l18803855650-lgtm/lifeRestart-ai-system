@@ -52,6 +52,15 @@ export default ({
     UI_Title_Summary: '人生总结',
     UI_Talent_Extend: '天赋：你可以选择一个，下辈子还能抽到',
     UI_Remake_Again: '再次重开',
+    UI_System_Init: '启',
+    UI_System_Current: '当前系统',
+    UI_System_Points: '系统点',
+    UI_System_Fate: '气运',
+    UI_System_Reputation: '声望',
+    UI_System_Energy: '能量',
+    UI_System_Abilities: '已解锁能力',
+    UI_System_Goal: '下一目标',
+    UI_System_None: '暂无',
 
     UI_Final_Age: '享年',
     UI_Total_Judge: '总评',
@@ -161,5 +170,9 @@ export default ({
     F_TalentSelectNotComplect: '要选满{0}个天赋',
     F_PropertyPointLeft: '你还有 {0} 属性点没有分配完',
     F_TalentReplace: '天赋替换【{source.name}】->【{target.name}】',
-    F_PropertyStr: '颜值{CHR} 智力{INT} 体质{STR} 家境{MNY}'
+    F_PropertyStr: '颜值{CHR} 智力{INT} 体质{STR} 家境{MNY}',
+    F_SystemAwaken: '系统【{name}】觉醒：{description}',
+    F_SystemProgress: '系统进阶【{name}】：{description}',
+    F_SystemAbilityUnlock: '系统能力【{name}】解锁：{description}',
+    F_SystemAbilityTick: '系统能力【{name}】发动：{description}'
 });

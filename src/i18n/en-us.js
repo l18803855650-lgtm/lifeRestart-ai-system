@@ -50,6 +50,15 @@ export default ({
     UI_Title_Summary: 'Life Summary',
     UI_Talent_Extend: 'Talent, You can choose one to extend',
     UI_Remake_Again: 'Remake Again',
+    UI_System_Init: 'SYS',
+    UI_System_Current: 'System',
+    UI_System_Points: 'Points',
+    UI_System_Fate: 'Fate',
+    UI_System_Reputation: 'Reputation',
+    UI_System_Energy: 'Energy',
+    UI_System_Abilities: 'Abilities',
+    UI_System_Goal: 'Next Goal',
+    UI_System_None: 'None',
 
     UI_Final_Age: 'Age',
     UI_Total_Judge: 'Judge',
@@ -160,5 +169,9 @@ export default ({
     F_TalentSelectNotComplect: 'Please select {0} talent',
     F_PropertyPointLeft: 'You have left {0} property point',
     F_TalentReplace: 'Talent replace [{source.name}] -> [{target.name}]',
-    F_PropertyStr: 'CHR{CHR} INT{INT} STR{STR} MNY{MNY}'
+    F_PropertyStr: 'CHR{CHR} INT{INT} STR{STR} MNY{MNY}',
+    F_SystemAwaken: 'System [{name}] awakened: {description}',
+    F_SystemProgress: 'System progress [{name}]: {description}',
+    F_SystemAbilityUnlock: 'System ability [{name}] unlocked: {description}',
+    F_SystemAbilityTick: 'System ability [{name}] triggered: {description}'
 });
