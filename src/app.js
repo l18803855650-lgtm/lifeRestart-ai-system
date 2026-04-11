@@ -3,6 +3,7 @@ import './ui/runtime.js';
 import './ui/pluginFunction.js'
 import './ui/promisesLaya.js'
 import './ui/layaUI.max.all.js';
+import { ensureLifeSystemAssistant } from './ai/systemAssistant.js';
 import UIManager from './ui/uiManager.js';
 import * as utils from './functions/util.js';
 
@@ -133,6 +134,7 @@ class App {
         globalThis.$lang =
             Laya.Text.langPacks =
             (await import(`./i18n/${this.#language}.js`)).default;
+        globalThis.$appLanguage = this.#language;
     }
 
     resigterEvent() {
@@ -158,6 +160,7 @@ class App {
         this.resigterEvent();
         this.#initLaya();
         globalThis.$ui = UIManager.getInstance();
+        ensureLifeSystemAssistant();
 
         if (theme == 'default') {
             theme = localStorage.getItem('theme') || 'default';

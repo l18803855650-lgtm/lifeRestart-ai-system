@@ -1,3 +1,5 @@
+import { lifeSystemAssistant } from '../../../ai/systemAssistant.js';
+
 export default class Summary extends ui.view.DefaultTheme.SummaryUI {
     constructor() {
         super();
@@ -31,6 +33,7 @@ export default class Summary extends ui.view.DefaultTheme.SummaryUI {
         const {summary, lastExtendTalent, system} = core;
         this.#enableExtend = enableExtend;
         this.labSystemInfo.text = this.formatSystemInfo(system);
+        lifeSystemAssistant.updateSummary({ talents });
 
         this.listSummary.array = [
             [core.PropertyTypes.HCHR, $lang.UI_Property_Charm],

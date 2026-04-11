@@ -1,3 +1,6 @@
+import { formatTrajectoryLines } from '../../../ai/formatTrajectoryLines.js';
+import { lifeSystemAssistant } from '../../../ai/systemAssistant.js';
+
 export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
     constructor() {
         super();
@@ -56,6 +59,7 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
         this.#isEnd = false;
         this.#talents = talents;
         const startContent = core.start(propertyAllocate);
+        lifeSystemAssistant.resetRun({ talents, propertyAllocate, startContent });
         if(startContent?.length) {
             this.renderTrajectory($lang.UI_System_Init, startContent);
         }
@@ -99,6 +103,7 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
         }
         this.panelTrajectory.scrollTo(0, this.panelTrajectory.contentHeight);
         this.renderTrajectory(age, content);
+        lifeSystemAssistant.pushTrajectory({ age, content });
 
         if(age >= 100) {
             this.boxParticle.visible = true;
@@ -109,27 +114,7 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
     renderTrajectory(age, content) {
         const item = this.#createTrajectoryItem();
         item.labAge.text = ''+age;
-        item.labContent.text = content.map(
-            ({type, description, grade, name, postEvent, kind}) => {
-                switch(type) {
-                    case 'TLT':
-                        return `天赋【${name}】发动：${description}`;
-                    case 'EVT':
-                        return description + (postEvent?`\n${postEvent}`:'');
-                    case core.PropertyTypes.SYS:
-                        switch(kind) {
-                            case 'ability':
-                                return $_.format($lang.F_SystemAbilityUnlock, {name, description});
-                            case 'abilityTick':
-                                return $_.format($lang.F_SystemAbilityTick, {name, description});
-                            case 'milestone':
-                                return $_.format($lang.F_SystemProgress, {name, description});
-                            default:
-                                return $_.format($lang.F_SystemAwaken, {name, description});
-                        }
-                }
-            }
-        ).join('\n');
+        item.labContent.text = formatTrajectoryLines(content).join('\n');
         item.grade(content[content.length - 1].grade);
         this.vboxTrajectory.addChild(item);
         this.#trajectoryItems.push(item);

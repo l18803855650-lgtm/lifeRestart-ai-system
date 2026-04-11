@@ -1,3 +1,5 @@
+import { lifeSystemAssistant } from '../../../ai/systemAssistant.js';
+
 export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
     constructor() {
         super();
@@ -30,6 +32,7 @@ export default class CyberSummary extends ui.view.CyberTheme.CyberSummaryUI {
         const {summary, lastExtendTalent, system} = core;
         this.#enableExtend = enableExtend;
         this.labSystemInfo.text = this.formatSystemInfo(system);
+        lifeSystemAssistant.updateSummary({ talents });
 
         const gradeFilters = $ui.common.filter;
         const gradeColors = $ui.common.grade;
