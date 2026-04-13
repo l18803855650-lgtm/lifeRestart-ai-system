@@ -62,6 +62,8 @@ export class MemoryEngine {
         this.maxMemories = 200;
         /** 摘要生成间隔（年） */
         this.summaryInterval = 10;
+        /** 自增ID计数器，确保ID唯一 */
+        this._nextId = 0;
     }
 
     // --------------------------------------------------------
@@ -76,6 +78,7 @@ export class MemoryEngine {
         this.inventory = [];
         this.milestones = [];
         this.currentAge = 0;
+        this._nextId = 0;
     }
 
     /**
@@ -91,7 +94,7 @@ export class MemoryEngine {
         const finalImportance = Math.max(importance, autoImportance);
 
         const entry = {
-            id: this.memories.length,
+            id: this._nextId++,
             age,
             event,
             importance: Math.min(1, Math.max(0, finalImportance)),
@@ -246,7 +249,7 @@ export class MemoryEngine {
 
         // 构建摘要文本
         const lines = [];
-        lines.push(`【${periodStart}-${periodEnd}岁 人生摘要】`);
+        lines.push(`【${periodStart}-${periodEnd - 1}岁 人生摘要】`);
 
         if (topEvents.length > 0) {
             lines.push('重要事件：');
