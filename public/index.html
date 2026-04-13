@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="default">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="description" content="人生重开模拟器 - AI系统版：用AI驱动你的无限人生">
     <meta name="theme-color" content="#1a1a2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -38,8 +38,8 @@
             <div class="page-content">
                 <div class="glass-card">
                     <div class="form-group">
-                        <label for="select-provider">AI 服务商</label>
-                        <select id="select-provider" class="select-field" aria-label="选择AI服务商">
+                        <label for="provider-select">AI 服务商</label>
+                        <select id="provider-select" class="select-field" aria-label="选择AI服务商">
                             <option value="minimax">MiniMax</option>
                             <option value="openai">OpenAI (GPT)</option>
                             <option value="gemini">Google Gemini</option>
@@ -49,22 +49,22 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="input-api-key">API Key</label>
-                        <input id="input-api-key" class="input-field" type="password" placeholder="输入你的 API Key" aria-label="输入API Key">
+                        <label for="api-key-input">API Key</label>
+                        <input id="api-key-input" class="input-field" type="password" placeholder="输入你的 API Key" aria-label="输入API Key">
                     </div>
-                    <div class="form-group" id="group-base-url">
-                        <label for="input-base-url">API 地址 (可选)</label>
-                        <input id="input-base-url" class="input-field" type="url" placeholder="https://api.example.com/v1" aria-label="输入API地址">
+                    <div class="form-group" id="base-url-group">
+                        <label for="base-url-input">API 地址 (可选)</label>
+                        <input id="base-url-input" class="input-field" type="url" placeholder="https://api.example.com/v1" aria-label="输入API地址">
                     </div>
                     <div class="form-group">
-                        <label for="select-model">模型</label>
-                        <select id="select-model" class="select-field" aria-label="选择模型"></select>
+                        <label for="model-select">模型</label>
+                        <select id="model-select" class="select-field" aria-label="选择模型"></select>
                     </div>
                     <p class="hint-text">🔒 API Key 仅保存在你的设备本地，不会上传到任何服务器</p>
                 </div>
                 <div class="btn-group">
-                    <button id="btn-skip-api" class="btn btn-secondary" aria-label="跳过API设置">跳过（本地模式）</button>
-                    <button id="btn-confirm-api" class="btn btn-primary" aria-label="确认接入API">确认接入</button>
+                    <button id="btn-api-skip" class="btn btn-secondary" aria-label="跳过API设置">跳过（本地模式）</button>
+                    <button id="btn-api-confirm" class="btn btn-primary" aria-label="确认接入API">确认接入</button>
                 </div>
             </div>
         </div>
@@ -79,9 +79,9 @@
                 <div id="system-grid" class="system-grid"></div>
                 <div class="btn-group">
                     <button id="btn-custom-system" class="btn btn-secondary" aria-label="自定义系统">✏️ 自定义系统</button>
-                    <button id="btn-import-system" class="btn btn-secondary" aria-label="导入分享码">📥 导入分享码</button>
+                    <button id="btn-import-share" class="btn btn-secondary" aria-label="导入分享码">📥 导入分享码</button>
                 </div>
-                <button id="btn-confirm-system" class="btn btn-primary btn-lg" disabled aria-label="确认选择系统">确认选择</button>
+                <button id="btn-system-confirm" class="btn btn-primary btn-lg" disabled aria-label="确认选择系统">确认选择</button>
             </div>
         </div>
 
@@ -92,12 +92,12 @@
                 <p>十连抽开启你的天赋之路</p>
             </div>
             <div class="page-content">
-                <div id="talent-pool" class="talent-grid"></div>
-                <p id="talent-count" class="text-center">已选择 0/3 个天赋</p>
+                <div id="talent-grid" class="talent-grid"></div>
+                <p id="talent-select-count" class="text-center">已选择 0/3 个天赋</p>
                 <div class="btn-group">
                     <button id="btn-draw-talents" class="btn btn-primary btn-lg" aria-label="十连抽天赋">🎲 十连抽！</button>
                     <button id="btn-redraw" class="btn btn-secondary" style="display:none" aria-label="重新抽取天赋">🔄 重新抽取</button>
-                    <button id="btn-confirm-talents" class="btn btn-primary" style="display:none" aria-label="确认天赋选择">确认天赋</button>
+                    <button id="btn-talent-confirm" class="btn btn-primary" aria-label="确认天赋选择" disabled>确认天赋</button>
                 </div>
             </div>
         </div>
@@ -106,11 +106,11 @@
         <div id="page-property-allocate" class="page">
             <div class="page-header">
                 <h2>属性分配</h2>
-                <p id="points-remaining">剩余点数: 20</p>
+                <p id="remaining-points">剩余点数: 20</p>
             </div>
             <div class="page-content">
                 <div class="glass-card">
-                    <div id="property-sliders">
+                    <div id="property-controls">
                         <div class="property-row" data-prop="CHR">
                             <span class="prop-icon">😊</span>
                             <span class="prop-name">颜值</span>
@@ -155,9 +155,9 @@
                 </div>
                 <div id="dynamic-stats-panel" class="glass-card" style="display:none">
                     <h3>系统属性</h3>
-                    <div id="dynamic-stats-container"></div>
+                    <div id="custom-stats-area"></div>
                 </div>
-                <button id="btn-confirm-props" class="btn btn-primary btn-lg" aria-label="确认属性开始人生">确认属性，开始人生</button>
+                <button id="btn-property-confirm" class="btn btn-primary btn-lg" aria-label="确认属性开始人生">确认属性，开始人生</button>
             </div>
         </div>
 
@@ -165,16 +165,16 @@
         <div id="page-life-simulation" class="page">
             <div class="sim-header">
                 <div class="age-display">
-                    <span id="current-age">0</span>
+                    <span id="age-badge">0</span>
                     <span>岁</span>
                 </div>
                 <div id="system-badge" class="system-badge">
                     <span id="system-emoji"></span>
                     <span id="system-name"></span>
                 </div>
-                <div id="sim-stats-bar" class="stats-bar-container"></div>
+                <div id="stats-bars" class="stats-bar-container"></div>
             </div>
-            <div id="property-display" class="property-mini-display"></div>
+            <div id="sim-custom-stats" class="property-mini-display"></div>
             <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
             <div id="task-overlay" class="task-overlay" style="display:none">
                 <div class="glass-card">
@@ -193,18 +193,13 @@
         <div id="page-chat" class="page chat-overlay">
             <div class="chat-header">
                 <h3>系统对话终端</h3>
-                <button id="btn-close-chat" class="btn-close" aria-label="关闭对话">✕</button>
+                <button id="btn-chat-close" class="btn-close" aria-label="关闭对话">✕</button>
             </div>
             <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
-            <div class="chat-quick-commands">
-                <button class="quick-cmd" data-cmd="许愿" aria-label="许愿">🌟 许愿</button>
-                <button class="quick-cmd" data-cmd="求技能" aria-label="求技能">⚡ 求技能</button>
-                <button class="quick-cmd" data-cmd="建议" aria-label="建议">💡 建议</button>
-                <button class="quick-cmd" data-cmd="吐槽" aria-label="吐槽">😤 吐槽</button>
-            </div>
+            <div id="quick-commands" class="chat-quick-commands"></div>
             <div class="chat-input-area">
                 <input id="chat-input" class="input-field" type="text" placeholder="和系统说点什么..." aria-label="输入消息">
-                <button id="btn-send-chat" class="btn btn-primary" aria-label="发送消息">发送</button>
+                <button id="btn-chat-send" class="btn btn-primary" aria-label="发送消息">发送</button>
             </div>
             <div id="typing-indicator" class="typing-indicator" style="display:none">
                 <span>系统正在回复</span>
@@ -220,8 +215,8 @@
             </div>
             <div class="page-content">
                 <div class="glass-card summary-score">
-                    <div id="final-score" class="big-score"></div>
-                    <div id="final-judge" class="judge-text"></div>
+                    <div id="life-score" class="big-score"></div>
+                    <div id="life-judge" class="judge-text"></div>
                 </div>
                 <div class="glass-card">
                     <h3>属性总览</h3>
@@ -264,7 +259,7 @@
                     </div>
                     <div class="form-group">
                         <label for="editor-description">系统描述</label>
-                        <textarea id="editor-description" class="input-field" placeholder="描述这个系统的世界观..." rows="3" aria-label="系统描述"></textarea>
+                        <textarea id="editor-desc" class="input-field" placeholder="描述这个系统的世界观..." rows="3" aria-label="系统描述"></textarea>
                     </div>
                     <div class="form-group">
                         <label for="editor-personality">系统性格</label>
@@ -294,8 +289,8 @@
                         </select>
                     </div>
                     <div class="btn-group">
-                        <button id="btn-cancel-editor" class="btn btn-secondary" aria-label="取消编辑">取消</button>
-                        <button id="btn-save-editor" class="btn btn-primary" aria-label="保存系统">保存系统</button>
+                        <button id="btn-editor-cancel" class="btn btn-secondary" aria-label="取消编辑">取消</button>
+                        <button id="btn-editor-save" class="btn btn-primary" aria-label="保存系统">保存系统</button>
                     </div>
                 </div>
             </div>

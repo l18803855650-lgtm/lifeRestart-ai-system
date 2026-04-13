@@ -97,8 +97,9 @@ class MainActivity : AppCompatActivity() {
             setSaveFormData(false)
 
             // 视图和缩放
-            useWideViewPort = true
-            loadWithOverviewMode = true
+            // 这是手机专用竖屏 APK，直接按设备视口渲染，避免页面被错误缩放导致不自适应
+            useWideViewPort = false
+            loadWithOverviewMode = false
             builtInZoomControls = false
             displayZoomControls = false
 

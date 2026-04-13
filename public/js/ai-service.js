@@ -147,10 +147,11 @@ class AIService {
         const temperature = options.temperature ?? 0.9;
         const maxTokens = options.max_tokens ?? 800;
 
-        if (this.provider === 'gemini') {
-            return this._callGemini(messages, { temperature, maxTokens });
-        }
-        return this._callOpenAICompatible(messages, { temperature, maxTokens });
+        const raw = this.provider === 'gemini'
+            ? await this._callGemini(messages, { temperature, maxTokens })
+            : await this._callOpenAICompatible(messages, { temperature, maxTokens });
+
+        return this._sanitizeAIText(raw);
     }
 
     /**
@@ -449,11 +450,9 @@ class AIService {
         const { age, properties, system, talents, recentEvents, memory } = context;
         const propDesc = this._formatProperties(properties);
         const talentDesc = talents?.length ? `天赋：${talents.join('、')}` : '';
-        const recentDesc = recentEvents?.length
-            ? `近期事件：\n${recentEvents.slice(-5).join('\n')}`
-            : '';
+        const recentDesc = this._formatRecentEvents(recentEvents);
         const memoryDesc = memory ? `记忆片段：${memory}` : '';
-        const systemDesc = system ? `当前世界体系：${system}` : '普通人生';
+        const systemDesc = this._formatSystemContext(system);
 
         const systemPrompt = [
             '你是「人生重开模拟器」的游戏系统，负责为玩家模拟真实而丰富的人生经历。',
@@ -462,7 +461,8 @@ class AIService {
             '每个事件应以独立一行输出，格式为纯文本描述，生动具体，有叙事感。',
             '事件需合理反映年龄阶段特征和属性影响，前后连贯。',
             '如果涉及属性变化，在事件末尾用括号标注，如：（魅力+1）。',
-            '不要输出编号、标题或任何多余格式，只输出事件文本。'
+            '严禁输出思考过程、分析过程、推理过程、解释、前言、标题、编号、JSON、Markdown。',
+            '直接输出事件正文，一行一个事件。'
         ].join('\n');
 
         const userPrompt = [
@@ -485,8 +485,10 @@ class AIService {
      */
     _buildSystemReplyPrompt(context, userMessage) {
         const { system, properties, age, personality } = context;
-        const systemDesc = system || '默认系统';
-        const personalityDesc = personality || '睿智而幽默的人生导师';
+        const systemDesc = this._formatSystemContext(system);
+        const personalityDesc = typeof personality === 'string'
+            ? personality
+            : (personality?.description || personality?.tone || personality?.name || '睿智而幽默的人生导师');
         const propDesc = this._formatProperties(properties);
 
         const systemPrompt = [
@@ -494,7 +496,9 @@ class AIService {
             `当前世界体系：${systemDesc}。`,
             '你需要以该人格身份回复玩家的消息，语气要符合角色设定。',
             '回复应简洁有趣，可以包含对玩家人生状态的评论、建议或吐槽。',
-            '保持角色一致性，不要跳出设定。'
+            '保持角色一致性，不要跳出设定。',
+            '严禁展示思考过程、推理过程、分析过程或任何类似“让我想想/我的分析是”的内容。',
+            '直接给出系统的最终回复。'
         ].join('\n');
 
         const userPrompt = [
@@ -526,7 +530,8 @@ class AIService {
             '请根据提供的人生数据，写一篇感人至深、文学性强的人生传记。',
             '传记应涵盖人生的重要阶段，有起承转合，有情感共鸣。',
             '字数控制在 300-500 字之间，使用优美的中文叙述。',
-            '最后给出一句精辟的人生评语作为墓志铭。'
+            '最后给出一句精辟的人生评语作为墓志铭。',
+            '不要输出思考过程、分析说明、提纲或小标题。'
         ].join('\n');
 
         const userPrompt = [
@@ -556,10 +561,11 @@ class AIService {
 
         const systemPrompt = [
             '你是「人生重开模拟器」的任务系统，负责为玩家生成动态互动任务。',
-            `当前世界体系：${system || '普通人生'}。`,
+            `当前世界体系：${this._formatSystemContext(system)}。`,
             '任务内容应贴合玩家当前的年龄和属性状态，有一定挑战性和趣味性。',
             '请生成任务描述、2-4个选项以及每个选项的可能结果。',
-            '输出格式：先写任务描述，然后每行一个选项，格式为"A. 选项内容 → 结果描述"。'
+            '输出格式：先写任务描述，然后每行一个选项，格式为"A. 选项内容 → 结果描述"。',
+            '不要输出思考过程或分析过程。'
         ].join('\n');
 
         const userPrompt = [
@@ -601,10 +607,14 @@ class AIService {
      */
     _parseEventReply(reply) {
         if (!reply) return [];
-        return reply
+        const cleaned = this._sanitizeAIText(reply);
+        return cleaned
             .split('\n')
             .map(line => line.trim())
-            .filter(line => line.length > 0 && !line.startsWith('#'));
+            .map(line => line.replace(/^[-*•]\s*/, '').replace(/^\d+[.)、]\s*/, ''))
+            .filter(line => line.length > 0)
+            .filter(line => !line.startsWith('#'))
+            .filter(line => !/^(思考|分析|推理|reasoning|analysis)[:：]/i.test(line));
     }
 
     // --------------------------------------------------------
@@ -614,6 +624,37 @@ class AIService {
     /**
      * 本地生成年度事件（无 API 密钥时使用）
      */
+    _formatSystemContext(system) {
+        if (!system) return '普通人生';
+        if (typeof system === 'string') return system;
+        const parts = [system.name, system.description, system.personality].filter(Boolean);
+        return parts.length ? parts.join('｜') : '普通人生';
+    }
+
+    _formatRecentEvents(recentEvents) {
+        if (!Array.isArray(recentEvents) || recentEvents.length === 0) return '';
+        const lines = recentEvents.slice(-5).map(item => {
+            if (!item) return '';
+            if (typeof item === 'string') return item;
+            const age = item.age !== undefined ? `${item.age}岁` : '';
+            const events = Array.isArray(item.events) ? item.events.join('；') : (item.text || item.content || '');
+            return [age, events].filter(Boolean).join('：');
+        }).filter(Boolean);
+        return lines.length ? `近期事件：\n${lines.join('\n')}` : '';
+    }
+
+    _sanitizeAIText(text) {
+        if (!text) return '';
+        let cleaned = String(text);
+        cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+        cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+        cleaned = cleaned.replace(/```(?:thinking|reasoning)[\s\S]*?```/gi, '');
+        cleaned = cleaned.replace(/^(思考过程|推理过程|分析过程|Reasoning|Analysis)[:：][\s\S]*?(?=\n\n|最终|答复|回复|事件|$)/gim, '');
+        cleaned = cleaned.replace(/^(最终回答|最终回复|答复|回复)[:：]\s*/gim, '');
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+        return cleaned.trim();
+    }
+
     _localGenerateEvent(context) {
         const { age = 0, properties = {}, system, talents = [] } = context;
         const events = [];

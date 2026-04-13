@@ -237,13 +237,10 @@ export class ChatTerminal {
             responseText = this._pickRandom(this._getTemplates('general'));
         }
 
-        /* 通过打字机效果展示回复 */
-        await this._typewriterEffect(responseText, (partial) => {
-            /* 回调通知 UI 更新部分文本 */
-        });
+        const finalText = typeof responseText === 'string' ? responseText.trim() : String(responseText || '').trim();
 
-        /* 添加系统回复到历史 */
-        const sysMsg = this.addSystemMessage(responseText);
+        /* 直接显示最终回复，避免长推理/打字机延迟影响体验 */
+        const sysMsg = this.addSystemMessage(finalText || '……');
 
         this._setTyping(false);
 
