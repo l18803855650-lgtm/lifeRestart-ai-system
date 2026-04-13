@@ -29,9 +29,15 @@ android {
         applicationId = "com.fanfan.liferestart.offline"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0-online-creator"
+        versionCode = 3
+        versionName = "2.0.0-system-ai"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 多 dex 支持
+        multiDexEnabled = true
+
+        // 向后兼容性
+        vectorDrawables.useSupportLibrary = true
     }
 
     buildFeatures {

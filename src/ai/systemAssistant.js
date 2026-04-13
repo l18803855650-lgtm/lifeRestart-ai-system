@@ -9,6 +9,8 @@ import {
     requestMiniMaxChat,
     saveAiConfig,
 } from './nativeMiniMax.js';
+import { localRuleEngine } from '../engine/localRuleEngine.js';
+import { memoryManager } from '../domain/memoryManager.js';
 
 function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -155,40 +157,123 @@ class LifeSystemAssistant {
             summary: clone(this.#state.summary),
         };
 
-        if (aiConfig.mode === 'android-direct') {
-            if (!aiConfig.hasApiKey) {
-                throw new Error('请先点右上角“设置”，填入你自己的 MiniMax API Key');
+        // 混合引擎：优先尝试 AI，失败时使用本地规则
+        try {
+            // 检查是否需要使用 AI
+            if (this.#shouldUseAI(aiConfig, context, userMessage)) {
+                if (aiConfig.mode === 'android-direct') {
+                    if (!aiConfig.hasApiKey) {
+                        throw new Error('请先点右上角”设置”，填入你自己的 MiniMax API Key');
+                    }
+                    const messages = buildSystemMessages({ intent, userMessage, history, context });
+                    const response = await requestMiniMaxChat({
+                        baseUrl: aiConfig.baseUrl,
+                        body: {
+                            model: aiConfig.model,
+                            temperature: 1,
+                            n: 1,
+                            max_tokens: 520,
+                            messages,
+                        },
+                    });
+                    return {
+                        reply: compactText(response?.choices?.[0]?.message?.content || '') || '系统暂时没有给出有效回复，你可以换个问法再试一次。',
+                        source: 'ai'
+                    };
+                }
+
+                if (!isAppAssetsOrigin() || hasAndroidMiniMaxBridge()) {
+                    const res = await fetch('/api/system-dialogue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ intent, userMessage, history, context }),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok) {
+                        return { ...data, source: 'ai' };
+                    }
+                }
             }
-            const messages = buildSystemMessages({ intent, userMessage, history, context });
-            const response = await requestMiniMaxChat({
-                baseUrl: aiConfig.baseUrl,
-                body: {
-                    model: aiConfig.model,
-                    temperature: 1,
-                    n: 1,
-                    max_tokens: 520,
-                    messages,
-                },
-            });
+
+            // AI 失败或不需要 AI，使用本地规则
+            return this.#useLocalRuleEngine(intent, context, userMessage);
+        } catch (error) {
+            console.warn('AI 请求失败，使用本地规则:', error.message);
+            // AI 失败，使用本地规则兜底
+            return this.#useLocalRuleEngine(intent, context, userMessage);
+        }
+    }
+
+    /**
+     * 判断是否应该使用 AI
+     */
+    #shouldUseAI(aiConfig, context, userMessage) {
+        // 如果没有 API Key，不使用 AI
+        if (aiConfig.mode === 'android-direct' && !aiConfig.hasApiKey) {
+            return false;
+        }
+
+        // 如果用户主动输入消息，尝试使用 AI
+        if (userMessage && userMessage.trim()) {
+            return true;
+        }
+
+        // 特定意图需要 AI
+        const aiRequiredIntents = ['create-event', 'create-talent', 'create-system'];
+        const currentIntent = this.#detectIntent(context.phase, userMessage);
+        return aiRequiredIntents.includes(currentIntent);
+    }
+
+    /**
+     * 检测当前意图
+     */
+    #detectIntent(phase, userMessage) {
+        if (userMessage?.includes('共创新事件')) return 'create-event';
+        if (userMessage?.includes('共创新天赋')) return 'create-talent';
+        if (userMessage?.includes('共创新能力')) return 'create-system';
+        if (phase === 'summary') return 'summary';
+        if (userMessage?.includes('建议') || userMessage?.includes('怎么做')) return 'advice';
+        if (userMessage?.includes('点评') || userMessage?.includes('评价')) return 'commentary';
+        if (userMessage?.includes('播报') || userMessage?.includes('开局')) return 'intro';
+        return 'chat';
+    }
+
+    /**
+     * 使用本地规则引擎
+     */
+    #useLocalRuleEngine(intent, context, userMessage) {
+        try {
+            switch (intent) {
+                case 'advice':
+                    const advices = localRuleEngine.generateAdvice(context);
+                    return {
+                        reply: advices.join('\n'),
+                        source: 'local'
+                    };
+                case 'commentary':
+                    const commentary = localRuleEngine.generateCommentary(context);
+                    return {
+                        reply: commentary,
+                        source: 'local'
+                    };
+                case 'summary':
+                    const summary = localRuleEngine.generateSummary(context);
+                    const summaryText = `高光：\n${summary.highlights.join('\n')}\n\n遗憾：\n${summary.regrets.join('\n')}\n\n建议：\n${summary.nextSteps.join('\n')}`;
+                    return {
+                        reply: summaryText,
+                        source: 'local'
+                    };
+                default:
+                    const reply = localRuleEngine.generateSystemReply(userMessage || '', context);
+                    return reply;
+            }
+        } catch (error) {
+            console.error('本地规则引擎错误:', error);
             return {
-                reply: compactText(response?.choices?.[0]?.message?.content || '') || '系统暂时没有给出有效回复，你可以换个问法再试一次。',
+                reply: '系统正在处理你的请求，请稍后...',
+                source: 'local-error'
             };
         }
-
-        if (isAppAssetsOrigin() && !hasAndroidMiniMaxBridge()) {
-            throw new Error('当前 APK 缺少原生直连桥，无法联网调用 AI');
-        }
-
-        const res = await fetch('/api/system-dialogue', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ intent, userMessage, history, context }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-            throw new Error(data.error || '系统暂时离线');
-        }
-        return data;
     }
 
     async #hydrateAiConfig() {

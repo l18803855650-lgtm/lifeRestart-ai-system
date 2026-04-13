@@ -82,22 +82,85 @@ class MainActivity : AppCompatActivity() {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         view.addJavascriptInterface(AndroidAppBridge(this), "LifeRestartAndroid")
         view.settings.apply {
+            // 基础配置
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+
+            // 缓存和存储
+            cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+
+            // 媒体和内容
             mediaPlaybackRequiresUserGesture = false
             loadsImagesAutomatically = true
+            setGeolocationEnabled(false)
+            setSaveFormData(false)
+
+            // 视图和缩放
             useWideViewPort = true
             loadWithOverviewMode = true
             builtInZoomControls = false
             displayZoomControls = false
+
+            // 安全设置
             allowFileAccess = false
             allowContentAccess = false
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+
+            // 性能优化
+            setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+            setEnableSmoothTransition(true)
+            setOffscreenPreRaster(true)
+
+            // 字体和文本
+            defaultFontSize = 16
+            minimumFontSize = 12
+            textZoom = 100
+
+            // 网络和连接
+            blockNetworkImage = false
+            blockNetworkLoads = false
+
+            // 多窗口
             setSupportMultipleWindows(false)
+            setSupportZoom(false)
         }
+
+        // 滚动条
         view.isHorizontalScrollBarEnabled = false
         view.isVerticalScrollBarEnabled = false
-        view.webChromeClient = WebChromeClient()
+
+        // Chrome Client
+        view.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage): Boolean {
+                val logTag = "LifeRestartWebView"
+                when (consoleMessage.messageLevel()) {
+                    android.webkit.ConsoleMessage.MessageLevel.ERROR ->
+                        android.util.Log.e(logTag, "${consoleMessage.sourceId()}:${consoleMessage.lineNumber()} - ${consoleMessage.message()}")
+                    android.webkit.ConsoleMessage.MessageLevel.WARNING ->
+                        android.util.Log.w(logTag, "${consoleMessage.sourceId()}:${consoleMessage.lineNumber()} - ${consoleMessage.message()}")
+                    else ->
+                        android.util.Log.d(logTag, "${consoleMessage.sourceId()}:${consoleMessage.lineNumber()} - ${consoleMessage.message()}")
+                }
+                return true
+            }
+
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                // 进度更新，可以显示加载进度
+            }
+
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: android.webkit.GeolocationPermissions.Callback?
+            ) {
+                // 拒绝地理位置权限
+                callback?.invoke(origin, false, false)
+            }
+        }
+
+        // WebView Client
         view.webViewClient = object : WebViewClientCompat() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
                 assetLoader.shouldInterceptRequest(request.url)
@@ -111,7 +174,15 @@ class MainActivity : AppCompatActivity() {
                 }
                 return false
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                // 页面加载完成，可以注入初始化代码
+                super.onPageFinished(view, url)
+            }
         }
+
+        // 性能优化设置
+        view.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
     }
 
     private fun openExternal(uri: Uri): Boolean {
