@@ -1,36 +1,306 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
-        <meta name="description" content="やり直すんだ。そして、次はうまくやる。"/>
-        <meta name="keywords" content="人生重开模拟器 liferestart life restart remake 人生重来"/>
-        <meta name="renderer" content="webkit"/>
-        <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta name="full-screen" content="true"/>
-        <meta name="x5-fullscreen" content="true"/>
-        <meta name="360-fullscreen" content="true"/>
-        <meta name="theme-color" content="#157878"/>
-        <meta name="laya" screenorientation ="portrait"/>
-        <meta http-equiv="expires" content="0"/>
-        <meta http-equiv="Cache-Control" content="no-siteapp"/>
-        <font-face font-family="方正像素12" src="fonts/方正像素12.ttf"/>
-        <title>Life Restart</title>
-        <!--
-        <script type="text/javascript" src="libs/laya/laya.core.js"></script>
-        <script type="text/javascript" src="libs/laya/laya.webgl.js"></script>
-        <script type="text/javascript" src="libs/laya/laya.filter.js"></script>
-        <script type="text/javascript" src="libs/laya/laya.html.js"></script>
-        <script type="text/javascript" src="libs/laya/laya.particle.js"></script>
-        <script type="text/javascript" src="libs/laya/laya.ui.js"></script>
-        -->
-        <script type="text/javascript" src="libs/laya/min/laya.core.min.js"></script>
-        <script type="text/javascript" src="libs/laya/min/laya.webgl.min.js"></script>
-        <script type="text/javascript" src="libs/laya/min/laya.filter.min.js"></script>
-        <script type="text/javascript" src="libs/laya/min/laya.particle.min.js"></script>
-        <script type="text/javascript" src="libs/laya/min/laya.ui.min.js"></script>
-        <script type="module" src="src/index.js"></script>
-    </head>
-    <body style="background:black"></body>
+<html lang="zh-CN" data-theme="default">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="description" content="人生重开模拟器 - AI系统版：用AI驱动你的无限人生">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>人生重开 · AI系统版</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- PWA manifest could go here -->
+</head>
+<body>
+    <div id="app">
+
+        <!-- ==================== 1. Start Page ==================== -->
+        <div id="page-start" class="page active">
+            <div class="page-content">
+                <h1 class="game-title gradient-text">人生重开模拟器</h1>
+                <p class="game-subtitle">AI 系统版 · 无限流人生叙事引擎</p>
+                <div class="start-features">
+                    <span>🎲 天赋十连抽</span>
+                    <span>🤖 AI驱动剧情</span>
+                    <span>♾️ 无限可能</span>
+                </div>
+                <button id="btn-start" class="btn btn-primary btn-lg" aria-label="开始新人生">开始新人生</button>
+                <p class="version-info">v2.0.0 · Powered by AI</p>
+            </div>
+        </div>
+
+        <!-- ==================== 2. API Setup Page ==================== -->
+        <div id="page-api-setup" class="page">
+            <div class="page-header">
+                <h2>接入天道</h2>
+                <p>选择你的AI引擎，为人生注入灵魂算力</p>
+            </div>
+            <div class="page-content">
+                <div class="glass-card">
+                    <div class="form-group">
+                        <label for="provider-select">AI 服务商</label>
+                        <select id="provider-select" class="select-field" aria-label="选择AI服务商">
+                            <option value="minimax">MiniMax</option>
+                            <option value="openai">OpenAI (GPT)</option>
+                            <option value="gemini">Google Gemini</option>
+                            <option value="glm">智谱 GLM</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="custom">自定义 API</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="api-key-input">API Key</label>
+                        <input id="api-key-input" class="input-field" type="password" placeholder="输入你的 API Key" aria-label="输入API Key">
+                    </div>
+                    <div class="form-group" id="base-url-group">
+                        <label for="base-url-input">API 地址 (可选)</label>
+                        <input id="base-url-input" class="input-field" type="url" placeholder="https://api.example.com/v1" aria-label="输入API地址">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-select">模型</label>
+                        <select id="model-select" class="select-field" aria-label="选择模型"></select>
+                    </div>
+                    <p class="hint-text">🔒 API Key 仅保存在你的设备本地，不会上传到任何服务器</p>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-api-skip" class="btn btn-secondary" aria-label="跳过API设置">跳过（本地模式）</button>
+                    <button id="btn-api-confirm" class="btn btn-primary" aria-label="确认接入API">确认接入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 3. System Select Page ==================== -->
+        <div id="page-system-select" class="page">
+            <div class="page-header">
+                <h2>选择伴生系统</h2>
+                <p>这个系统将作为你脑海中的那个声音</p>
+            </div>
+            <div class="page-content">
+                <div id="system-grid" class="system-grid"></div>
+                <div class="btn-group">
+                    <button id="btn-custom-system" class="btn btn-secondary" aria-label="自定义系统">✏️ 自定义系统</button>
+                    <button id="btn-import-share" class="btn btn-secondary" aria-label="导入分享码">📥 导入分享码</button>
+                </div>
+                <button id="btn-system-confirm" class="btn btn-primary btn-lg" disabled aria-label="确认选择系统">确认选择</button>
+            </div>
+        </div>
+
+        <!-- ==================== 4. Talent Draw Page ==================== -->
+        <div id="page-talent-draw" class="page">
+            <div class="page-header">
+                <h2>天命抽取</h2>
+                <p>十连抽开启你的天赋之路</p>
+            </div>
+            <div class="page-content">
+                <div id="talent-grid" class="talent-grid"></div>
+                <p id="talent-select-count" class="text-center">已选择 0/3 个天赋</p>
+                <div class="btn-group">
+                    <button id="btn-draw-talents" class="btn btn-primary btn-lg" aria-label="十连抽天赋">🎲 十连抽！</button>
+                    <button id="btn-redraw" class="btn btn-secondary" style="display:none" aria-label="重新抽取天赋">🔄 重新抽取</button>
+                    <button id="btn-talent-confirm" class="btn btn-primary" aria-label="确认天赋选择" disabled>确认天赋</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 5. Property Allocate Page ==================== -->
+        <div id="page-property-allocate" class="page">
+            <div class="page-header">
+                <h2>属性分配</h2>
+                <p id="remaining-points">剩余点数: 20</p>
+            </div>
+            <div class="page-content">
+                <div class="glass-card">
+                    <div id="property-controls">
+                        <div class="property-row" data-prop="CHR">
+                            <span class="prop-icon">😊</span>
+                            <span class="prop-name">颜值</span>
+                            <button class="btn-minus" aria-label="减少颜值">-</button>
+                            <span class="prop-value">0</span>
+                            <button class="btn-plus" aria-label="增加颜值">+</button>
+                            <div class="prop-bar"><div class="prop-bar-fill"></div></div>
+                        </div>
+                        <div class="property-row" data-prop="INT">
+                            <span class="prop-icon">🧠</span>
+                            <span class="prop-name">智力</span>
+                            <button class="btn-minus" aria-label="减少智力">-</button>
+                            <span class="prop-value">0</span>
+                            <button class="btn-plus" aria-label="增加智力">+</button>
+                            <div class="prop-bar"><div class="prop-bar-fill"></div></div>
+                        </div>
+                        <div class="property-row" data-prop="STR">
+                            <span class="prop-icon">💪</span>
+                            <span class="prop-name">体质</span>
+                            <button class="btn-minus" aria-label="减少体质">-</button>
+                            <span class="prop-value">0</span>
+                            <button class="btn-plus" aria-label="增加体质">+</button>
+                            <div class="prop-bar"><div class="prop-bar-fill"></div></div>
+                        </div>
+                        <div class="property-row" data-prop="MNY">
+                            <span class="prop-icon">💰</span>
+                            <span class="prop-name">家境</span>
+                            <button class="btn-minus" aria-label="减少家境">-</button>
+                            <span class="prop-value">0</span>
+                            <button class="btn-plus" aria-label="增加家境">+</button>
+                            <div class="prop-bar"><div class="prop-bar-fill"></div></div>
+                        </div>
+                        <div class="property-row" data-prop="SPR">
+                            <span class="prop-icon">😄</span>
+                            <span class="prop-name">快乐</span>
+                            <button class="btn-minus" aria-label="减少快乐">-</button>
+                            <span class="prop-value">0</span>
+                            <button class="btn-plus" aria-label="增加快乐">+</button>
+                            <div class="prop-bar"><div class="prop-bar-fill"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="dynamic-stats-panel" class="glass-card" style="display:none">
+                    <h3>系统属性</h3>
+                    <div id="custom-stats-area"></div>
+                </div>
+                <button id="btn-property-confirm" class="btn btn-primary btn-lg" aria-label="确认属性开始人生">确认属性，开始人生</button>
+            </div>
+        </div>
+
+        <!-- ==================== 6. Life Simulation Page ==================== -->
+        <div id="page-life-simulation" class="page">
+            <div class="sim-header">
+                <div class="age-display">
+                    <span id="age-badge">0</span>
+                    <span>岁</span>
+                </div>
+                <div id="system-badge" class="system-badge">
+                    <span id="system-emoji"></span>
+                    <span id="system-name"></span>
+                </div>
+                <div id="stats-bars" class="stats-bar-container"></div>
+            </div>
+            <div id="sim-custom-stats" class="property-mini-display"></div>
+            <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
+            <div id="task-overlay" class="task-overlay" style="display:none">
+                <div class="glass-card">
+                    <h3 id="task-title"></h3>
+                    <p id="task-description"></p>
+                    <div id="task-choices"></div>
+                </div>
+            </div>
+            <div class="sim-footer">
+                <button id="btn-next-year" class="btn btn-primary btn-lg" aria-label="进入下一年">⏭️ 下一年</button>
+                <button id="btn-open-chat" class="btn btn-secondary" aria-label="打开系统对话">💬 对话系统</button>
+            </div>
+        </div>
+
+        <!-- ==================== 7. Chat Page/Overlay ==================== -->
+        <div id="page-chat" class="page chat-overlay">
+            <div class="chat-header">
+                <h3>系统对话终端</h3>
+                <button id="btn-chat-close" class="btn-close" aria-label="关闭对话">✕</button>
+            </div>
+            <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+            <div id="quick-commands" class="chat-quick-commands"></div>
+            <div class="chat-input-area">
+                <input id="chat-input" class="input-field" type="text" placeholder="和系统说点什么..." aria-label="输入消息">
+                <button id="btn-chat-send" class="btn btn-primary" aria-label="发送消息">发送</button>
+            </div>
+            <div id="typing-indicator" class="typing-indicator" style="display:none">
+                <span>系统正在回复</span>
+                <span class="typing-dots">...</span>
+            </div>
+        </div>
+
+        <!-- ==================== 8. Life Summary Page ==================== -->
+        <div id="page-life-summary" class="page">
+            <div class="page-header">
+                <h2 class="gradient-text">人生终章</h2>
+                <p id="death-info"></p>
+            </div>
+            <div class="page-content">
+                <div class="glass-card summary-score">
+                    <div id="life-score" class="big-score"></div>
+                    <div id="life-judge" class="judge-text"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>属性总览</h3>
+                    <canvas id="radar-chart" width="280" height="280"></canvas>
+                    <div id="final-properties" class="final-props-grid"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>天赋回顾</h3>
+                    <div id="final-talents" class="talent-badges"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>人生高光</h3>
+                    <div id="life-highlights" class="highlights-list"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>人物传记</h3>
+                    <div id="biography-text" class="biography"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>人生里程碑</h3>
+                    <div id="milestone-timeline" class="timeline"></div>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-copy-report" class="btn btn-secondary" aria-label="复制战报">📋 复制战报</button>
+                    <button id="btn-download-report" class="btn btn-secondary" aria-label="下载战报图">📸 下载战报图</button>
+                    <button id="btn-share-report" class="btn btn-primary" aria-label="分享战报">🔗 分享</button>
+                </div>
+                <button id="btn-restart" class="btn btn-primary btn-lg" aria-label="重新开始游戏">🔄 重新开始</button>
+            </div>
+        </div>
+
+        <!-- ==================== 9. System Editor Modal ==================== -->
+        <div id="system-editor-modal">
+            <div class="modal-overlay" style="display:none">
+                <div class="modal-content glass-card">
+                    <h3>自定义系统编辑器</h3>
+                    <div class="form-group">
+                        <label for="editor-name">系统名称</label>
+                        <input id="editor-name" class="input-field" placeholder="给你的系统起个名字" aria-label="系统名称">
+                    </div>
+                    <div class="form-group">
+                        <label for="editor-description">系统描述</label>
+                        <textarea id="editor-desc" class="input-field" placeholder="描述这个系统的世界观..." rows="3" aria-label="系统描述"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editor-personality">系统性格</label>
+                        <textarea id="editor-personality" class="input-field" placeholder="描述系统的说话风格和性格特点..." rows="3" aria-label="系统性格"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editor-tone">语气风格</label>
+                        <select id="editor-tone" class="select-field" aria-label="语气风格">
+                            <option value="tsundere">傲娇</option>
+                            <option value="sarcastic">毒舌</option>
+                            <option value="devoted">舔狗</option>
+                            <option value="cold">高冷</option>
+                            <option value="mysterious">神秘</option>
+                            <option value="cheerful">欢乐</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editor-theme">主题颜色</label>
+                        <select id="editor-theme" class="select-field" aria-label="主题颜色">
+                            <option value="default">深蓝科技</option>
+                            <option value="cultivation">金色仙侠</option>
+                            <option value="tycoon">紫金奢华</option>
+                            <option value="apocalypse">暗红末世</option>
+                            <option value="cthulhu">暗绿恐怖</option>
+                            <option value="signin">明亮活力</option>
+                            <option value="villain">暗紫邪魅</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-editor-cancel" class="btn btn-secondary" aria-label="取消编辑">取消</button>
+                        <button id="btn-editor-save" class="btn btn-primary" aria-label="保存系统">保存系统</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 10. Toast Container ==================== -->
+        <div id="toast-container" class="toast-container"></div>
+
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
 </html>

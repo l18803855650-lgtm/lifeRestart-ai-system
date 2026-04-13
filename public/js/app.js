@@ -384,6 +384,7 @@ class App {
         const importBtn = page.querySelector('#btn-import-share');
 
         this._selectedSystemId = null;
+        if (confirmBtn) confirmBtn.disabled = true;
 
         // 渲染系统卡片
         if (grid) {
@@ -407,6 +408,7 @@ class App {
                     grid.querySelectorAll('.system-card').forEach(c => c.classList.remove('selected', 'glow'));
                     card.classList.add('selected', 'glow');
                     this._selectedSystemId = sys.id;
+                    if (confirmBtn) confirmBtn.disabled = false;
                 };
                 grid.appendChild(card);
             });
@@ -472,6 +474,11 @@ class App {
 
         this._drawnTalents = [];
         this._selectedTalentIds = new Set();
+        if (drawBtn) drawBtn.style.display = '';
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.style.display = '';
+        }
 
         // 清空已有内容
         if (talentGrid) talentGrid.innerHTML = '';
@@ -490,7 +497,10 @@ class App {
 
                 this._selectedTalentIds = new Set();
                 if (countDisplay) countDisplay.textContent = '已选择 0/3';
-                if (confirmBtn) confirmBtn.disabled = true;
+                if (confirmBtn) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.style.display = '';
+                }
 
                 // 渲染天赋卡片
                 if (talentGrid) {

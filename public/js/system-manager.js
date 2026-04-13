@@ -1387,4 +1387,4 @@ export class SystemManager {
 
 /** 全局系统管理器实例 */
 export const systemManager = new SystemManager();
-export { SystemManager, PRESET_SYSTEMS };
+export { PRESET_SYSTEMS };
