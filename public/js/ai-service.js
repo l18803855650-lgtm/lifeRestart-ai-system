@@ -102,13 +102,16 @@ class AIService {
     }
 
     /**
-     * 获取当前配置（密钥脱敏）
+     * 获取当前配置
+     * @param {Object} options
+     * @param {boolean} options.masked - 是否脱敏 API Key
      * @returns {Object}
      */
-    getConfig() {
+    getConfig(options = {}) {
+        const { masked = false } = options;
         return {
             provider: this.provider,
-            apiKey: this.apiKey ? this._maskKey(this.apiKey) : '',
+            apiKey: masked ? (this.apiKey ? this._maskKey(this.apiKey) : '') : (this.apiKey || ''),
             baseUrl: this.baseUrl,
             model: this.model,
             providerName: PROVIDERS[this.provider]?.name || '未知'

@@ -25,6 +25,7 @@
                     <span>♾️ 无限可能</span>
                 </div>
                 <button id="btn-start" class="btn btn-primary btn-lg" aria-label="开始新人生">开始新人生</button>
+                <button id="btn-continue" class="btn btn-secondary btn-lg" aria-label="继续上次人生" style="display:none">继续上次人生</button>
                 <p class="version-info">v2.0.0 · Powered by AI</p>
             </div>
         </div>
@@ -176,14 +177,37 @@
             </div>
             <div id="sim-custom-stats" class="property-mini-display"></div>
             <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
+            <div class="life-side-panels">
+                <section class="panel-card glass-card">
+                    <div class="panel-header">
+                        <h3>🎯 当前目标</h3>
+                        <span id="save-status" class="panel-tip">未存档</span>
+                    </div>
+                    <div id="current-task-summary" class="panel-body muted-text">暂无进行中的任务</div>
+                </section>
+                <section class="panel-card glass-card">
+                    <div class="panel-header">
+                        <h3>🎒 资源与物品</h3>
+                    </div>
+                    <div id="inventory-summary" class="panel-body muted-text">尚未获得关键物品</div>
+                </section>
+                <section class="panel-card glass-card">
+                    <div class="panel-header">
+                        <h3>🤝 重要关系</h3>
+                    </div>
+                    <div id="relationship-summary" class="panel-body muted-text">你的人生故事还没有重要人物登场</div>
+                </section>
+            </div>
             <div id="task-overlay" class="task-overlay" style="display:none">
                 <div class="glass-card">
                     <h3 id="task-title"></h3>
                     <p id="task-description"></p>
-                    <div id="task-choices"></div>
+                    <div id="task-choices" class="task-choice-list"></div>
+                    <button id="btn-task-close" class="btn btn-secondary">稍后再说</button>
                 </div>
             </div>
             <div class="sim-footer">
+                <button id="btn-save-game" class="btn btn-secondary" aria-label="保存当前进度">💾 保存进度</button>
                 <button id="btn-next-year" class="btn btn-primary btn-lg" aria-label="进入下一年">⏭️ 下一年</button>
                 <button id="btn-open-chat" class="btn btn-secondary" aria-label="打开系统对话">💬 对话系统</button>
             </div>

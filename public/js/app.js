@@ -133,6 +133,10 @@ class App {
             this.pages['page-start'].classList.add('active');
         }
 
+        // 恢复已保存的 AI 配置与继续游戏入口
+        this._restoreAiConfig();
+        this._updateContinueButton();
+
         // 初始化起始页
         this._initStartPage();
 
@@ -220,6 +224,104 @@ class App {
         document.documentElement.setAttribute('data-theme', themeName || 'default');
     }
 
+    _getSaveKey() {
+        return 'liferestart-modern-ui-save-v1';
+    }
+
+    _readProgress() {
+        try {
+            const raw = localStorage.getItem(this._getSaveKey());
+            return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+            console.warn('[App] 读取存档失败：', err.message);
+            return null;
+        }
+    }
+
+    _persistProgress(options = {}) {
+        const { manual = false } = options;
+        try {
+            const snapshot = {
+                version: VERSION,
+                savedAt: Date.now(),
+                currentPage: this.currentPage,
+                selectedSystemId: this._selectedSystemId || this.gameEngine.getState().system?.id || null,
+                aiConfig: this.aiService.getConfig(),
+                game: this.gameEngine.exportSaveData(),
+            };
+            localStorage.setItem(this._getSaveKey(), JSON.stringify(snapshot));
+            this._updateSaveStatus(snapshot.savedAt, manual ? '已手动保存' : '已自动保存');
+            this._updateContinueButton();
+            return true;
+        } catch (err) {
+            console.warn('[App] 保存进度失败：', err.message);
+            return false;
+        }
+    }
+
+    _clearProgress() {
+        localStorage.removeItem(this._getSaveKey());
+        this._updateSaveStatus(null, '未存档');
+        this._updateContinueButton();
+    }
+
+    _updateSaveStatus(savedAt = null, label = '未存档') {
+        const el = document.getElementById('save-status');
+        if (!el) return;
+        if (!savedAt) {
+            el.textContent = label;
+            return;
+        }
+        const time = new Date(savedAt);
+        const hh = String(time.getHours()).padStart(2, '0');
+        const mm = String(time.getMinutes()).padStart(2, '0');
+        el.textContent = `${label} ${hh}:${mm}`;
+    }
+
+    _updateContinueButton() {
+        const btn = document.getElementById('btn-continue');
+        if (!btn) return;
+        const save = this._readProgress();
+        btn.style.display = save?.game ? '' : 'none';
+    }
+
+    _restoreAiConfig() {
+        return this.aiService.getConfig();
+    }
+
+    _resumeProgress() {
+        const save = this._readProgress();
+        if (!save?.game) {
+            this.showToast('没有找到可继续的存档', 'warning');
+            return;
+        }
+
+        const systemId = save.selectedSystemId || save.game.systemId;
+        const restoredSystem = systemId ? this.systemManager.getSystem(systemId) : null;
+        if (restoredSystem) {
+            this.systemManager.activateSystem(restoredSystem.id);
+            this.setTheme(restoredSystem.theme || 'default');
+        }
+        this.gameEngine.importSaveData(save.game, restoredSystem);
+        this._selectedSystemId = systemId || null;
+
+        if (save.aiConfig?.provider) {
+            this.aiService.configure({
+                provider: save.aiConfig.provider,
+                apiKey: save.aiConfig.apiKey || '',
+                baseUrl: save.aiConfig.baseUrl || '',
+                model: save.aiConfig.model || '',
+            });
+        }
+
+        this._updateSimulationUI();
+        this._updateContinueButton();
+        this._updateSaveStatus(save.savedAt, '继续存档');
+        const targetPage = save.currentPage && this.pages[save.currentPage] ? save.currentPage : 'page-life-simulation';
+        this.navigateTo(targetPage);
+        this.showToast('已恢复上次人生进度', 'success');
+    }
+
     // ────────────────────────────────────────────────────────
     // 页面入口分发
     // ────────────────────────────────────────────────────────
@@ -261,7 +363,16 @@ class App {
         // 绑定「开始新人生」按钮
         const startBtn = page.querySelector('#btn-start');
         if (startBtn) {
-            startBtn.onclick = () => this.navigateTo('page-api-setup');
+            startBtn.onclick = () => {
+                this._clearProgress();
+                this.navigateTo('page-api-setup');
+            };
+        }
+
+        const continueBtn = page.querySelector('#btn-continue');
+        if (continueBtn) {
+            continueBtn.style.display = this._readProgress()?.game ? '' : 'none';
+            continueBtn.onclick = () => this._resumeProgress();
         }
     }
 
@@ -673,6 +784,7 @@ class App {
                     gameEngine.confirmAllocation();
                     this.showToast('属性分配完成，人生即将开始！', 'success');
                     this.navigateTo('page-life-simulation');
+                    this._persistProgress();
                 } catch (err) {
                     this.showToast('属性确认失败: ' + err.message, 'error');
                 }
@@ -697,40 +809,21 @@ class App {
         const page = this.pages['page-life-simulation'];
         if (!page) return;
 
-        const ageBadge = page.querySelector('#age-badge');
-        const systemName = page.querySelector('#system-name');
-        const eventLog = page.querySelector('#event-log');
         const nextYearBtn = page.querySelector('#btn-next-year');
         const chatBtn = page.querySelector('#btn-open-chat');
-        const statsArea = page.querySelector('#stats-bars');
+        const saveBtn = page.querySelector('#btn-save-game');
+        const closeTaskBtn = page.querySelector('#btn-task-close');
 
-        // 开始人生
-        try {
-            gameEngine.startLife();
-        } catch (_) {
-            /* 可能已经启动 */
+        if (gameEngine.getPhase() !== 'living' && gameEngine.getCurrentAge() < 0) {
+            try {
+                gameEngine.startLife();
+            } catch (_) {
+                /* 可能已经启动 */
+            }
         }
 
-        // 显示系统名称
-        const activeSystem = systemManager.getActiveSystem();
-        if (systemName && activeSystem) {
-            systemName.textContent = activeSystem.name;
-        }
+        this._updateSimulationUI();
 
-        // 初始化年龄显示
-        if (ageBadge) ageBadge.textContent = `${gameEngine.getCurrentAge()} 岁`;
-
-        // 清空事件日志
-        if (eventLog) eventLog.innerHTML = '';
-
-        // 初始化属性条
-        this._renderStatsBars(statsArea);
-
-        // 初始化系统自定义属性条
-        const customStatsArea = page.querySelector('#sim-custom-stats');
-        this._renderCustomStatsBars(customStatsArea);
-
-        // 「下一年」按钮
         if (nextYearBtn) {
             nextYearBtn.onclick = async () => {
                 nextYearBtn.disabled = true;
@@ -738,114 +831,19 @@ class App {
 
                 try {
                     const result = await gameEngine.nextYear();
+                    this._appendYearRecord(result);
+                    this._updateSimulationUI();
+                    this._persistProgress();
 
-                    // 更新年龄
-                    if (ageBadge) ageBadge.textContent = `${result.age} 岁`;
-
-                    // 渲染事件
-                    if (eventLog) {
-                        const yearBlock = _createElement('div', 'year-block');
-
-                        const yearLabel = _createElement('div', 'year-label',
-                            `<span class="age-tag">${result.age} 岁</span>`
-                        );
-                        yearBlock.appendChild(yearLabel);
-
-                        if (result.events && result.events.length > 0) {
-                            result.events.forEach(evt => {
-                                const evtEl = _createElement('div', `event-item event-${evt.type || 'normal'}`,
-                                    _escapeHtml(evt.text || evt)
-                                );
-                                yearBlock.appendChild(evtEl);
-                            });
-                        }
-
-                        // 系统消息
-                        if (result.systemMessage) {
-                            const sysEl = _createElement('div', 'event-item event-system',
-                                `【系统】${_escapeHtml(result.systemMessage)}`
-                            );
-                            yearBlock.appendChild(sysEl);
-                        }
-
-                        // 选择事件
-                        if (result.choices && result.choices.length > 0) {
-                            const choiceDiv = _createElement('div', 'choice-container');
-                            result.choices.forEach(choice => {
-                                const btn = _createElement('button', 'btn-choice', _escapeHtml(choice.text));
-                                btn.onclick = async () => {
-                                    choiceDiv.querySelectorAll('.btn-choice').forEach(b => b.disabled = true);
-                                    btn.classList.add('selected');
-                                    if (choice.callback) await choice.callback();
-                                    this.showToast(`已选择: ${choice.text}`, 'info');
-                                };
-                                choiceDiv.appendChild(btn);
-                            });
-                            yearBlock.appendChild(choiceDiv);
-                        }
-
-                        // 系统任务
-                        if (result.task) {
-                            const taskOverlay = _createElement('div', 'task-overlay');
-                            taskOverlay.innerHTML = `
-                                <div class="task-content">
-                                    <h3>📋 系统任务</h3>
-                                    <p>${_escapeHtml(result.task.description || result.task.text || '')}</p>
-                                    <button class="btn-task-complete">完成任务</button>
-                                </div>
-                            `;
-                            yearBlock.appendChild(taskOverlay);
-                            taskOverlay.querySelector('.btn-task-complete').onclick = () => {
-                                taskOverlay.classList.add('task-done');
-                                setTimeout(() => taskOverlay.remove(), 500);
-                            };
-                        }
-
-                        // 属性变化提示
-                        if (result.propertyChanges) {
-                            const changesText = Object.entries(result.propertyChanges)
-                                .filter(([, v]) => v !== 0)
-                                .map(([k, v]) => {
-                                    const prop = PROPERTIES[k];
-                                    const sign = v > 0 ? '+' : '';
-                                    return `${prop ? prop.icon : k} ${sign}${v}`;
-                                })
-                                .join('  ');
-                            if (changesText) {
-                                const changeEl = _createElement('div', 'property-change-hint', changesText);
-                                yearBlock.appendChild(changeEl);
-                            }
-                        }
-
-                        eventLog.appendChild(yearBlock);
-
-                        // 平滑滚动到底部
-                        requestAnimationFrame(() => {
-                            eventLog.scrollTo({ top: eventLog.scrollHeight, behavior: 'smooth' });
-                        });
+                    if (result.task) {
+                        this._showTaskOverlay(result.task);
                     }
 
-                    // 更新属性条
-                    this._renderStatsBars(statsArea);
-                    this._renderCustomStatsBars(page.querySelector('#sim-custom-stats'));
-
-                    // 检查是否死亡
                     if (result.isEnd) {
                         nextYearBtn.style.display = 'none';
-
-                        const deathOverlay = _createElement('div', 'death-overlay');
-                        deathOverlay.innerHTML = `
-                            <div class="death-content">
-                                <div class="death-icon">💀</div>
-                                <div class="death-text">${_escapeHtml(result.deathReason || '你的一生结束了')}</div>
-                            </div>
-                        `;
-                        if (eventLog) eventLog.appendChild(deathOverlay);
-
-                        // 2秒后跳转到总结页
                         setTimeout(() => {
                             this.navigateTo('page-life-summary');
-                        }, 2000);
+                        }, 1200);
                     }
                 } catch (err) {
                     this.showToast('模拟出错: ' + err.message, 'error');
@@ -856,10 +854,194 @@ class App {
             };
         }
 
-        // 聊天浮窗按钮
         if (chatBtn) {
             chatBtn.onclick = () => this.navigateTo('page-chat');
         }
+
+        if (saveBtn) {
+            saveBtn.onclick = () => {
+                if (this._persistProgress({ manual: true })) {
+                    this.showToast('已保存当前人生进度', 'success');
+                } else {
+                    this.showToast('保存失败，请稍后重试', 'error');
+                }
+            };
+        }
+
+        if (closeTaskBtn) {
+            closeTaskBtn.onclick = () => this._hideTaskOverlay();
+        }
+    }
+
+    _updateSimulationUI() {
+        const page = this.pages['page-life-simulation'];
+        if (!page) return;
+
+        const ageBadge = page.querySelector('#age-badge');
+        const systemName = page.querySelector('#system-name');
+        const statsArea = page.querySelector('#stats-bars');
+        const customStatsArea = page.querySelector('#sim-custom-stats');
+        const eventLog = page.querySelector('#event-log');
+        const nextYearBtn = page.querySelector('#btn-next-year');
+
+        const activeSystem = systemManager.getActiveSystem() || (this._selectedSystemId ? systemManager.getSystem(this._selectedSystemId) : null);
+        if (systemName && activeSystem) systemName.textContent = activeSystem.name;
+        if (ageBadge) ageBadge.textContent = `${Math.max(0, gameEngine.getCurrentAge())} 岁`;
+
+        this._renderStatsBars(statsArea);
+        this._renderCustomStatsBars(customStatsArea);
+        this._renderWorldPanels();
+
+        if (eventLog) {
+            eventLog.innerHTML = '';
+            gameEngine.getLifeEvents().forEach(record => this._appendYearRecord(record, { rerendering: true }));
+        }
+
+        if (nextYearBtn) {
+            nextYearBtn.style.display = gameEngine.isAlive() ? '' : 'none';
+        }
+    }
+
+    _renderWorldPanels() {
+        const page = this.pages['page-life-simulation'];
+        if (!page) return;
+
+        const taskSummary = page.querySelector('#current-task-summary');
+        const inventorySummary = page.querySelector('#inventory-summary');
+        const relationshipSummary = page.querySelector('#relationship-summary');
+        const world = gameEngine.getWorldPanels();
+
+        if (taskSummary) {
+            const task = world.currentTask;
+            taskSummary.innerHTML = task
+                ? `<strong>${_escapeHtml(task.title || '系统任务')}</strong><span>${_escapeHtml(task.description || '')}</span>`
+                : '暂无进行中的任务';
+        }
+
+        if (inventorySummary) {
+            const items = world.inventory || [];
+            if (!items.length) {
+                inventorySummary.textContent = '尚未获得关键物品';
+            } else {
+                inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 6).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
+            }
+        }
+
+        if (relationshipSummary) {
+            const relations = world.relationships || [];
+            if (!relations.length) {
+                relationshipSummary.textContent = '你的人生故事还没有重要人物登场';
+            } else {
+                relationshipSummary.innerHTML = `<div class="info-list">${relations.map(rel => `<div class="info-list-item"><strong>${_escapeHtml(rel.name)}</strong><span>好感 ${_escapeHtml(String(rel.attitude ?? 0))}</span></div>`).join('')}</div>`;
+            }
+        }
+    }
+
+    _appendYearRecord(result, options = {}) {
+        const { rerendering = false } = options;
+        const page = this.pages['page-life-simulation'];
+        const eventLog = page?.querySelector('#event-log');
+        if (!eventLog || !result) return;
+
+        const yearBlock = _createElement('div', 'year-block');
+        const yearLabel = _createElement('div', 'year-label', `<span class="age-tag">${result.age} 岁</span>`);
+        yearBlock.appendChild(yearLabel);
+
+        (result.events || []).forEach(evt => {
+            const evtEl = _createElement('div', `event-item event-${evt.type || 'normal'}`, _escapeHtml(evt.text || evt));
+            yearBlock.appendChild(evtEl);
+        });
+
+        if (result.systemMessage) {
+            yearBlock.appendChild(_createElement('div', 'event-item event-system', `【系统】${_escapeHtml(result.systemMessage)}`));
+        }
+
+        if (result.choices && result.choices.length > 0) {
+            const choiceDiv = _createElement('div', 'choice-container');
+            result.choices.forEach(choice => {
+                const btn = _createElement('button', 'btn-choice', _escapeHtml(choice.text));
+                btn.onclick = async () => {
+                    choiceDiv.querySelectorAll('.btn-choice').forEach(b => b.disabled = true);
+                    btn.classList.add('selected');
+                    if (choice.callback) {
+                        const choiceResult = await choice.callback();
+                        if (choiceResult?.result) {
+                            yearBlock.appendChild(_createElement('div', 'event-item event-choice-result', _escapeHtml(choiceResult.result)));
+                        }
+                        this._updateSimulationUI();
+                        this._persistProgress();
+                    }
+                };
+                choiceDiv.appendChild(btn);
+            });
+            yearBlock.appendChild(choiceDiv);
+        }
+
+        if (result.propertyChanges) {
+            const changesText = Object.entries(result.propertyChanges)
+                .filter(([, v]) => v !== 0)
+                .map(([k, v]) => {
+                    const prop = PROPERTIES[k];
+                    const sign = v > 0 ? '+' : '';
+                    return `${prop ? prop.icon : k} ${sign}${v}`;
+                })
+                .join('  ');
+            if (changesText) {
+                yearBlock.appendChild(_createElement('div', 'property-change-hint', changesText));
+            }
+        }
+
+        if (result.isEnd) {
+            const deathOverlay = _createElement('div', 'death-overlay');
+            deathOverlay.innerHTML = `
+                <div class="death-content">
+                    <div class="death-icon">💀</div>
+                    <div class="death-text">${_escapeHtml(result.deathReason || '你的一生结束了')}</div>
+                </div>
+            `;
+            yearBlock.appendChild(deathOverlay);
+        }
+
+        eventLog.appendChild(yearBlock);
+
+        if (!rerendering) {
+            requestAnimationFrame(() => {
+                eventLog.scrollTo({ top: eventLog.scrollHeight, behavior: 'smooth' });
+            });
+        }
+    }
+
+    _showTaskOverlay(task) {
+        const overlay = this.pages['page-life-simulation']?.querySelector('#task-overlay');
+        if (!overlay || !task) return;
+        const title = overlay.querySelector('#task-title');
+        const desc = overlay.querySelector('#task-description');
+        const choices = overlay.querySelector('#task-choices');
+        if (title) title.textContent = task.title || '系统任务';
+        if (desc) desc.textContent = task.description || '';
+        if (choices) {
+            choices.innerHTML = '';
+            (task.choices || []).forEach(choice => {
+                const btn = _createElement('button', 'btn btn-task-choice', _escapeHtml(choice.text));
+                btn.onclick = async () => {
+                    choices.querySelectorAll('button').forEach(b => b.disabled = true);
+                    const result = choice.callback ? await choice.callback() : null;
+                    this._hideTaskOverlay();
+                    if (result?.result) {
+                        this.showToast(result.result, 'success');
+                    }
+                    this._updateSimulationUI();
+                    this._persistProgress();
+                };
+                choices.appendChild(btn);
+            });
+        }
+        overlay.style.display = 'flex';
+    }
+
+    _hideTaskOverlay() {
+        const overlay = this.pages['page-life-simulation']?.querySelector('#task-overlay');
+        if (overlay) overlay.style.display = 'none';
     }
 
     /** 渲染主属性条 */
@@ -1175,6 +1357,7 @@ class App {
                 this._drawnTalents = [];
                 this._selectedTalentIds = new Set();
                 this._allocation = { CHR: 0, INT: 0, STR: 0, MNY: 0, SPR: 0 };
+                this._clearProgress();
                 this.navigateTo('page-start');
             };
         }

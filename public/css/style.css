@@ -2080,3 +2080,146 @@ ul, ol { list-style: none; }
     bottom: max(24px, calc(env(safe-area-inset-bottom) + 8px));
   }
 }
+
+/* Life dashboard panels */
+.life-side-panels {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.panel-card {
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.panel-tip {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.muted-text {
+  color: var(--text-secondary);
+}
+
+.info-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+}
+
+.info-list {
+  display: grid;
+  gap: 8px;
+}
+
+.info-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.info-list-item strong {
+  font-size: 0.92rem;
+}
+
+.info-list-item span {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.task-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 11, 18, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.task-overlay .glass-card {
+  width: min(100%, 520px);
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.task-overlay h3 {
+  margin: 0 0 8px;
+}
+
+.task-desc {
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+}
+
+.task-choice-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.btn-task-choice {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary);
+}
+
+.btn-task-choice:hover,
+.btn-task-choice:focus-visible {
+  border-color: rgba(111, 126, 255, 0.5);
+  background: rgba(111, 126, 255, 0.12);
+}
+
+.btn-choice[disabled],
+.btn-task-choice[disabled] {
+  opacity: 0.7;
+}
+
+@media (min-width: 768px) {
+  .life-side-panels {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

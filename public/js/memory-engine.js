@@ -175,6 +175,20 @@ export class MemoryEngine {
         return true;
     }
 
+    /** 获取当前物品列表（浅拷贝） */
+    getInventory() {
+        return this.inventory.map(item => ({ ...item }));
+    }
+
+    /** 获取重要关系列表（按好感绝对值排序） */
+    getRelationships(limit = 6) {
+        return Object.entries(this.relationships)
+            .map(([name, value]) => ({ name, ...value }))
+            .sort((a, b) => Math.abs(b.attitude || 0) - Math.abs(a.attitude || 0))
+            .slice(0, limit)
+            .map(item => ({ ...item, events: Array.isArray(item.events) ? item.events.map(e => ({ ...e })) : [] }));
+    }
+
     /**
      * 记录人生里程碑
      * @param {number} age - 年龄

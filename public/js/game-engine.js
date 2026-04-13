@@ -655,6 +655,12 @@ export class GameEngine {
 
         /** @type {number} 上次生成任务的年龄 */
         this._lastTaskAge = -10;
+
+        /** @type {Set<string>} 剧情路线标签，决定后续事件走向 */
+        this._storyFlags = new Set();
+
+        /** @type {number} 上次出现关键人生抉择的年龄 */
+        this._lastDecisionAge = -10;
     }
 
     // ─────────────────────────────────────────────────
@@ -679,6 +685,8 @@ export class GameEngine {
         this._naturalLifespan = 80;
         this._triggeredSpecials = new Set();
         this._lastTaskAge = -10;
+        this._storyFlags = new Set();
+        this._lastDecisionAge = -10;
 
         // 重置记忆引擎
         try {
@@ -1024,7 +1032,7 @@ export class GameEngine {
         }
 
         // ── 7. 动态任务生成 ──
-        if (age - this._lastTaskAge >= 5 && Math.random() < 0.3) {
+        if (age - this._lastTaskAge >= 4 && Math.random() < 0.45) {
             task = this._generateTask(age);
             if (task) {
                 this._currentTask = task;
@@ -1032,14 +1040,28 @@ export class GameEngine {
             }
         }
 
-        // ── 8. 生成阶段总结（每 10 年） ──
+        // ── 8. 关键人生抉择 ──
+        let decision = null;
+        if (this._alive && age >= 12 && age - this._lastDecisionAge >= 4) {
+            decision = this._generateLifeDecision(age);
+            if (decision) {
+                this._lastDecisionAge = age;
+                events.push({
+                    type: 'decision',
+                    text: `【关键抉择】${decision.description}`,
+                    importance: 3,
+                });
+            }
+        }
+
+        // ── 9. 生成阶段总结（每 10 年） ──
         try {
             if (memoryEngine.shouldGenerateSummary && memoryEngine.shouldGenerateSummary(age)) {
                 memoryEngine.generatePeriodSummary(age);
             }
         } catch (e) { /* 静默处理 */ }
 
-        // ── 9. 死亡判定 ──
+        // ── 10. 死亡判定 ──
         const deathCheck = this._checkDeath(age);
         if (deathCheck.isDead) {
             this._alive = false;
@@ -1064,11 +1086,19 @@ export class GameEngine {
             events,
             propertyChanges,
             systemMessage,
-            task: task || undefined,
+            task: task ? this._buildTaskForUI(age, task) : undefined,
             isEnd: !this._alive,
             deathReason: this._deathReason || undefined,
             properties: this.getProperties(),
         };
+
+        if (decision) {
+            yearRecord.choices = decision.choices.map(choice => ({
+                text: choice.text,
+                callback: async () => this._resolveLifeDecision(yearRecord, decision, choice),
+            }));
+        }
+
         this._lifeEvents.push(yearRecord);
 
         return yearRecord;
@@ -1111,6 +1141,24 @@ export class GameEngine {
     }
 
     /**
+     * 构建供 UI 渲染的任务对象
+     * @param {number} age
+     * @param {Object} task
+     * @returns {Object}
+     */
+    _buildTaskForUI(age, task) {
+        return {
+            title: task.title || '系统任务',
+            description: task.description,
+            urgency: task.urgency || 'normal',
+            choices: (task.choices || []).map((choice, index) => ({
+                text: choice.text,
+                callback: async () => this.respondToTask(index),
+            })),
+        };
+    }
+
+    /**
      * 玩家响应动态任务
      * @param {number} choiceIndex - 选项索引
      * @returns {Object|null} 任务结果
@@ -1119,7 +1167,7 @@ export class GameEngine {
         if (!this._currentTask) return null;
 
         const task = this._currentTask;
-        const choice = task.choices[choiceIndex];
+        const choice = task.choices?.[choiceIndex];
 
         if (!choice) {
             console.warn(`无效的任务选项索引：${choiceIndex}`);
@@ -1127,20 +1175,16 @@ export class GameEngine {
         }
 
         const propertyChanges = {};
+        this._applyEffectMap(choice.effect, propertyChanges);
+        this._applyNarrativeRewards(choice, this._age);
 
-        // 应用选项效果
-        if (choice.effect) {
-            for (const [key, delta] of Object.entries(choice.effect)) {
-                this._applyPropertyChange(key, delta, propertyChanges);
-            }
-        }
+        const taskText = `任务「${task.description}」—— ${choice.text}：${choice.result}`;
+        this._appendCurrentYearEvent({ type: 'task', text: taskText, importance: 3 });
 
-        // 记录到记忆
         try {
-            memoryEngine.addEvent(this._age, `任务「${task.description}」—— ${choice.text}：${choice.result}`, 2);
+            memoryEngine.addEvent(this._age, taskText, 2);
         } catch (e) { /* 静默处理 */ }
 
-        // 清除当前任务
         this._currentTask = null;
 
         return {
@@ -1149,6 +1193,7 @@ export class GameEngine {
             result: choice.result,
             propertyChanges,
             properties: this.getProperties(),
+            world: this.getWorldPanels(),
         };
     }
 
@@ -1185,6 +1230,80 @@ export class GameEngine {
      */
     getPhase() {
         return this._phase;
+    }
+
+    /**
+     * 导出可序列化的存档数据
+     * @returns {Object}
+     */
+    exportSaveData() {
+        return {
+            phase: this._phase,
+            age: this._age,
+            alive: this._alive,
+            properties: deepClone(this._properties),
+            totalPoints: this._totalPoints,
+            propertiesLocked: this._propertiesLocked,
+            drawnTalents: deepClone(this._drawnTalents),
+            selectedTalents: deepClone(this._selectedTalents),
+            lifeEvents: deepClone(this._lifeEvents),
+            currentTask: deepClone(this._currentTask),
+            deathReason: this._deathReason,
+            naturalLifespan: this._naturalLifespan,
+            systemId: this._system?.id || null,
+            system: deepClone(this._system),
+            triggeredSpecials: Array.from(this._triggeredSpecials),
+            lastTaskAge: this._lastTaskAge,
+            storyFlags: Array.from(this._storyFlags),
+            lastDecisionAge: this._lastDecisionAge,
+            memory: memoryEngine.exportData(),
+        };
+    }
+
+    /**
+     * 从存档数据恢复游戏状态
+     * @param {Object} data
+     * @param {Object|null} restoredSystem
+     */
+    importSaveData(data, restoredSystem = null) {
+        if (!data || typeof data !== 'object') return false;
+
+        this._phase = data.phase || PHASE.IDLE;
+        this._age = typeof data.age === 'number' ? data.age : -1;
+        this._alive = !!data.alive;
+        this._properties = { CHR: 0, INT: 0, STR: 0, MNY: 0, SPR: 0, ...(data.properties || {}) };
+        this._totalPoints = typeof data.totalPoints === 'number' ? data.totalPoints : BASE_PROPERTY_POINTS;
+        this._propertiesLocked = !!data.propertiesLocked;
+        this._drawnTalents = Array.isArray(data.drawnTalents) ? deepClone(data.drawnTalents) : [];
+        this._selectedTalents = Array.isArray(data.selectedTalents) ? deepClone(data.selectedTalents) : [];
+        this._lifeEvents = Array.isArray(data.lifeEvents) ? deepClone(data.lifeEvents) : [];
+        this._currentTask = data.currentTask ? deepClone(data.currentTask) : null;
+        this._deathReason = data.deathReason || null;
+        this._naturalLifespan = typeof data.naturalLifespan === 'number' ? data.naturalLifespan : 80;
+        this._system = restoredSystem ? deepClone(restoredSystem) : (data.system ? deepClone(data.system) : null);
+        this._triggeredSpecials = new Set(Array.isArray(data.triggeredSpecials) ? data.triggeredSpecials : []);
+        this._lastTaskAge = typeof data.lastTaskAge === 'number' ? data.lastTaskAge : -10;
+        this._storyFlags = new Set(Array.isArray(data.storyFlags) ? data.storyFlags : []);
+        this._lastDecisionAge = typeof data.lastDecisionAge === 'number' ? data.lastDecisionAge : -10;
+
+        if (data.memory) {
+            try {
+                memoryEngine.importData(data.memory);
+            } catch (err) {
+                console.warn('恢复记忆存档失败：', err.message);
+            }
+        }
+        return true;
+    }
+
+    /** 获取当前世界状态摘要 */
+    getWorldPanels() {
+        return {
+            inventory: memoryEngine.getInventory(),
+            relationships: memoryEngine.getRelationships(6),
+            storyFlags: Array.from(this._storyFlags),
+            currentTask: this._currentTask ? deepClone(this._currentTask) : null,
+        };
     }
 
     // ─────────────────────────────────────────────────
@@ -1328,6 +1447,193 @@ export class GameEngine {
         if (changeRecord) {
             changeRecord[key] = (changeRecord[key] || 0) + delta;
         }
+    }
+
+    _applyEffectMap(effectMap, changeRecord) {
+        if (!effectMap) return;
+        for (const [key, delta] of Object.entries(effectMap)) {
+            this._applyPropertyChange(key, delta, changeRecord);
+        }
+    }
+
+    _appendCurrentYearEvent(event) {
+        if (!event) return;
+        const current = this._lifeEvents[this._lifeEvents.length - 1];
+        if (current && current.age === this._age) {
+            current.events.push(event);
+        }
+    }
+
+    _applyNarrativeRewards(payload, age = this._age) {
+        if (!payload) return;
+
+        if (payload.money) {
+            this._applyPropertyChange('MNY', payload.money, null);
+        }
+
+        if (payload.item) {
+            memoryEngine.addItem(payload.item, payload.itemDesc || '', payload.itemRarity || 'rare');
+        }
+
+        if (Array.isArray(payload.items)) {
+            payload.items.forEach(item => {
+                if (!item?.name) return;
+                memoryEngine.addItem(item.name, item.description || '', item.rarity || 'common');
+            });
+        }
+
+        if (payload.relationship) {
+            memoryEngine.updateRelationship(
+                payload.relationship.name,
+                payload.relationship.delta || 0,
+                payload.relationship.event || payload.result || payload.text || '命运因你而改变'
+            );
+        }
+
+        if (Array.isArray(payload.relationships)) {
+            payload.relationships.forEach(rel => {
+                if (!rel?.name) return;
+                memoryEngine.updateRelationship(rel.name, rel.delta || 0, rel.event || payload.result || '命运因你而改变');
+            });
+        }
+
+        if (Array.isArray(payload.flags)) {
+            payload.flags.forEach(flag => this._storyFlags.add(flag));
+        }
+
+        if (Array.isArray(payload.removeFlags)) {
+            payload.removeFlags.forEach(flag => this._storyFlags.delete(flag));
+        }
+
+        if (payload.milestone) {
+            memoryEngine.addMilestone(age, payload.milestone, payload.importance || 3);
+        }
+    }
+
+    _buildStageDecisionPool(age) {
+        const systemId = this._system?.id || 'default';
+        const pools = [];
+
+        if (age >= 12 && age <= 17) {
+            pools.push(
+                {
+                    description: '班主任把你叫到办公室：你的人生要开始分路了。你要怎么度过接下来的学生时代？',
+                    choices: [
+                        { text: '埋头学习，冲高分路线', effect: { INT: 2, SPR: -1 }, flags: ['route:study'], result: '你选择把青春押在课桌和试卷上，成绩一路上扬。', relationship: { name: '班主任', delta: 6, event: '你成了老师重点关照的对象' }, milestone: '学生时代选择了高分路线' },
+                        { text: '加入社团，经营人脉和表达', effect: { CHR: 2, SPR: 1 }, flags: ['route:social'], result: '你在社团里混得风生水起，越来越会说话，也认识了不少朋友。', relationship: { name: '社团伙伴', delta: 12, event: '你在社团里结识了可靠伙伴' }, item: '社团荣誉证书', itemDesc: '记录你活跃青春的证明', itemRarity: 'common' },
+                        { text: '偷偷培养兴趣，押注一门自己的本事', effect: { INT: 1, CHR: 1, SPR: 1 }, flags: ['route:craft'], result: '你把课余时间悄悄投入自己的兴趣，这项本事日后会反复救你。', item: '兴趣作品集', itemDesc: '你少年时期积累的第一批作品', itemRarity: 'rare', milestone: '学生时代打下了兴趣技能基础' },
+                    ],
+                }
+            );
+        }
+
+        if (age >= 18 && age <= 28) {
+            pools.push(
+                {
+                    description: '成年之后，第一个真正属于你自己的岔路口来了。你准备怎么赌这一把？',
+                    choices: [
+                        { text: '继续升学，走长期成长路线', effect: { INT: 2, STR: -1 }, flags: ['route:education'], result: '你选择延迟兑现，继续积累学历和认知，人生节奏变慢但更稳。', relationship: { name: '导师', delta: 10, event: '你遇到了一位影响深远的导师' }, milestone: '青年期选择了深造路线' },
+                        { text: '直接工作，尽快赚钱立足', effect: { MNY: 2, STR: 1 }, flags: ['route:career'], result: '你比同龄人更早进入社会，现实的压力也让你更快成熟。', relationship: { name: '同事阿晋', delta: 8, event: '你在职场结识了第一位真正能并肩作战的人' } },
+                        { text: '拉人创业，赌一把命运上限', effect: { CHR: 1, MNY: 1, SPR: 1 }, flags: ['route:startup'], result: '你选择不按常规来，哪怕会摔得很疼，也要试一次自己定义人生。', item: '创业计划书', itemDesc: '写满野心和风险的创业蓝图', itemRarity: 'epic', relationship: { name: '合伙人林舟', delta: 14, event: '你和林舟一拍即合，决定联手创业' }, milestone: '青年期走上创业路线' },
+                    ],
+                }
+            );
+        }
+
+        if (age >= 29 && age <= 45) {
+            pools.push(
+                {
+                    description: '你已经不再年轻，手里的筹码和责任一起变多。这一次，你把重心放在哪里？',
+                    choices: [
+                        { text: '冲事业，争一个更高的位置', effect: { INT: 1, MNY: 2, STR: -1 }, flags: ['route:ambition'], result: '你把更多时间投入事业，名望和收益开始快速抬升，但身体也在发出抗议。', relationship: { name: '竞争对手', delta: -12, event: '你在事业上树立了明显的对手' } },
+                        { text: '顾家庭，稳住真正重要的人', effect: { CHR: 1, SPR: 2 }, flags: ['route:family'], removeFlags: ['route:ambition'], result: '你决定把时间留给更重要的人，生活的节奏变慢，但心开始安定。', relationship: { name: '家人', delta: 18, event: '你重新把精力放回家人身上' }, milestone: '中年期选择了家庭路线' },
+                        { text: '投资自己和资产，准备下一阶段跃迁', effect: { MNY: 1, INT: 1, SPR: 1 }, flags: ['route:invest'], result: '你开始系统经营资源和资产，人生从“赚钱”走向“配置未来”。', item: '长期投资组合', itemDesc: '你亲手打造的资产配置组合', itemRarity: 'rare' },
+                    ],
+                }
+            );
+        }
+
+        if (systemId === 'cultivation' && age >= 16 && age <= 60) {
+            pools.push({
+                description: '灵台一震，你感觉自己站在突破与走火入魔的临界点上，要不要赌这次破境？',
+                choices: [
+                    { text: '强行破境，搏一次逆天改命', effect: { INT: 1, STR: 1, SPR: -1 }, flags: ['cultivation:breakthrough'], result: '你顶着风险硬冲境界，虽然心神震荡，但修为精进了一大步。', item: '残缺灵玉', itemDesc: '突破时遗留下来的灵性碎片', itemRarity: 'epic', milestone: '修仙路线完成了一次高风险破境' },
+                    { text: '先稳固根基，缓一步再说', effect: { STR: 1, SPR: 1 }, flags: ['cultivation:stable'], result: '你压下躁动，选择稳固根基，这让未来的突破更扎实。', relationship: { name: '授业长老', delta: 10, event: '长老认可了你的心性' } },
+                ],
+            });
+        }
+
+        if (systemId === 'tycoon' && age >= 18 && age <= 55) {
+            pools.push({
+                description: '系统推来一笔高风险机会：你要立刻梭哈，还是稳着做现金流？',
+                choices: [
+                    { text: '押注高风险高回报项目', effect: { MNY: 3, SPR: -1 }, flags: ['tycoon:aggressive'], result: '你把钱砸向风口，短期波动极大，但收益也开始疯狂放大。', item: '控股协议', itemDesc: '一份足以改变资产规模的协议', itemRarity: 'epic' },
+                    { text: '先做稳健现金流生意', effect: { MNY: 2, STR: 1 }, flags: ['tycoon:steady'], result: '你不追一夜暴富，而是把商业体系搭扎实，后劲更足。', relationship: { name: '金牌客户', delta: 12, event: '你拿下了长期合作客户' } },
+                ],
+            });
+        }
+
+        if (systemId === 'villain' && age >= 15 && age <= 50) {
+            pools.push({
+                description: '有人当众踩你的脸，这次你要忍，还是当场反击？',
+                choices: [
+                    { text: '忍住，暗中布局再反杀', effect: { INT: 2, SPR: 1 }, flags: ['villain:scheme'], result: '你没有马上翻脸，而是把这口气记在心里，开始布一盘更大的局。', relationship: { name: '宿敌韩岳', delta: -18, event: '你和韩岳结下梁子' }, milestone: '反派路线进入布局期' },
+                    { text: '当场打脸，先把场子找回来', effect: { CHR: 1, STR: 1 }, flags: ['villain:dominant'], result: '你毫不退让，当场把对方压住，名声和仇恨一起上涨。', relationship: { name: '围观者', delta: 6, event: '很多人第一次真正记住了你' } },
+                ],
+            });
+        }
+
+        if (systemId === 'checkin' && age >= 12 && age <= 70) {
+            pools.push({
+                description: '今日签到触发特殊暴击：你要把好运花在眼前，还是存到以后再爆？',
+                choices: [
+                    { text: '立刻领取，先把眼前提升吃满', effect: { STR: 1, MNY: 1, SPR: 1 }, flags: ['checkin:cashout'], result: '你把今天的好运马上兑现，眼前的手感明显变顺了。', item: '暴击签到礼包', itemDesc: '签到系统暴击奖励', itemRarity: 'rare' },
+                    { text: '选择累计，赌后面的大爆发', effect: { INT: 1, SPR: 1 }, flags: ['checkin:stack'], result: '你把好运压进未来的池子里，虽然眼前收益少了些，但后劲更值得期待。', milestone: '签到路线开始累积大奖概率' },
+                ],
+            });
+        }
+
+        return pools;
+    }
+
+    _generateLifeDecision(age) {
+        const pools = this._buildStageDecisionPool(age);
+        if (!pools.length) return null;
+        const picked = pools[Math.floor(Math.random() * pools.length)];
+        return deepClone(picked);
+    }
+
+    async _resolveLifeDecision(yearRecord, decision, choice) {
+        const propertyChanges = {};
+        this._applyEffectMap(choice.effect, propertyChanges);
+        this._applyNarrativeRewards(choice, yearRecord.age);
+
+        const resultText = choice.result || '你的选择在命运里激起了一圈涟漪。';
+        const event = {
+            type: 'choice-result',
+            text: `【你选择了：${choice.text}】${resultText}`,
+            importance: 3,
+        };
+        yearRecord.events.push(event);
+        yearRecord.propertyChanges = {
+            ...(yearRecord.propertyChanges || {}),
+            ...Object.fromEntries(Object.entries(propertyChanges).map(([k, v]) => [k, (yearRecord.propertyChanges?.[k] || 0) + v]))
+        };
+        yearRecord.properties = this.getProperties();
+        yearRecord.choices = [];
+
+        try {
+            memoryEngine.addEvent(yearRecord.age, `${decision.description}｜你选择了${choice.text}：${resultText}`, 3);
+        } catch (err) {
+            console.warn('记录人生抉择失败：', err.message);
+        }
+
+        return {
+            result: resultText,
+            propertyChanges,
+            properties: this.getProperties(),
+            world: this.getWorldPanels(),
+        };
     }
 
     /**
@@ -1568,6 +1874,17 @@ export class GameEngine {
             }
         }
 
+        // ── 剧情路线后续反馈 ──
+        const routeEvent = this._generateRouteFollowupEvent(age, props);
+        if (routeEvent) {
+            events.push({
+                type: 'branch_followup',
+                text: routeEvent,
+                importance: 2,
+                source: 'local',
+            });
+        }
+
         return events;
     }
 
@@ -1668,6 +1985,39 @@ export class GameEngine {
         return pickRandom(generic);
     }
 
+    _generateRouteFollowupEvent(age, props) {
+        if (!this._storyFlags || this._storyFlags.size === 0) return null;
+        if (Math.random() > 0.32) return null;
+
+        const routeNarratives = [];
+        if (this._storyFlags.has('route:study') && age >= 15) {
+            routeNarratives.push('你过去埋头苦读的积累开始兑现，遇到复杂问题时总能比别人更快抓住重点。');
+        }
+        if (this._storyFlags.has('route:social') && age >= 15) {
+            routeNarratives.push('你以前经营下来的人脉在关键时刻起了作用，一句招呼就换来了新的机会。');
+        }
+        if (this._storyFlags.has('route:startup') && age >= 22) {
+            routeNarratives.push('你早年赌上的创业路线开始反噬也开始回报，每一步都比普通人更刺激。');
+        }
+        if (this._storyFlags.has('route:family') && age >= 30) {
+            routeNarratives.push('你选择家庭优先的决定正在悄悄改变你的人生底色，很多冲动都被温柔地化解了。');
+        }
+        if (this._storyFlags.has('cultivation:breakthrough')) {
+            routeNarratives.push('破境留下的余波仍在体内翻涌，你比过去更接近真正的修行者了。');
+        }
+        if (this._storyFlags.has('tycoon:aggressive')) {
+            routeNarratives.push('高风险布局让你的资产曲线像过山车，但也让你拥有了别人不敢想的上限。');
+        }
+        if (this._storyFlags.has('villain:scheme')) {
+            routeNarratives.push('你曾压下怒火布下的局开始发酵，那些轻视你的人逐渐发现不对劲了。');
+        }
+        if (this._storyFlags.has('checkin:stack')) {
+            routeNarratives.push('你积攒下来的运气开始连锁触发，一连串的小概率好事砸到了你头上。');
+        }
+
+        return routeNarratives.length ? pickRandom(routeNarratives) : null;
+    }
+
     /**
      * 生成属性随机波动
      */
@@ -1691,12 +2041,86 @@ export class GameEngine {
         const eligible = TASK_POOL.filter(tp =>
             age >= tp.ageRange[0] && age <= tp.ageRange[1]
         );
-        if (eligible.length === 0) return null;
+        const systemSpecific = this._buildSystemTaskGroups(age);
+        const pool = [...eligible, ...systemSpecific];
+        if (pool.length === 0) return null;
 
-        const group = pickRandom(eligible);
+        const group = pickRandom(pool);
         if (!group || !group.tasks || group.tasks.length === 0) return null;
 
         return deepClone(pickRandom(group.tasks));
+    }
+
+    _buildSystemTaskGroups(age) {
+        const systemId = this._system?.id;
+        if (!systemId) return [];
+
+        const groups = [];
+        if (systemId === 'cultivation' && age >= 14) {
+            groups.push({
+                ageRange: [14, 90],
+                tasks: [
+                    {
+                        title: '灵气失衡',
+                        description: '你体内灵气翻涌，必须决定是冒险冲关还是暂避锋芒。',
+                        choices: [
+                            { text: '强行冲关', effect: { STR: 1, INT: 1, SPR: -1 }, result: '你冒险冲关，虽然心神震荡，但境界有所松动。', item: '破境灵砂', itemDesc: '辅助下次修行的稀有灵砂', itemRarity: 'rare', flags: ['cultivation:breakthrough'] },
+                            { text: '闭关稳固', effect: { STR: 1, SPR: 1 }, result: '你压住躁动闭关修炼，根基反而更稳。', relationship: { name: '授业长老', delta: 8, event: '长老认为你心性可造' }, flags: ['cultivation:stable'] },
+                        ],
+                    }
+                ],
+            });
+        }
+
+        if (systemId === 'tycoon' && age >= 18) {
+            groups.push({
+                ageRange: [18, 90],
+                tasks: [
+                    {
+                        title: '资本风口',
+                        description: '系统推送一条高热度商业机会，你准备如何下注？',
+                        choices: [
+                            { text: '高杠杆追风口', effect: { MNY: 3, SPR: -1 }, result: '你把筹码压向风口，波动剧烈但收益上限大开。', item: '控股协议', itemDesc: '改变资产规模的关键协议', itemRarity: 'epic', flags: ['tycoon:aggressive'] },
+                            { text: '做稳现金流项目', effect: { MNY: 2, STR: 1 }, result: '你没赌极限收益，而是搭出一套更健康的商业现金流。', relationship: { name: '金牌客户', delta: 12, event: '你拿下了长期合作客户' }, flags: ['tycoon:steady'] },
+                        ],
+                    }
+                ],
+            });
+        }
+
+        if (systemId === 'villain' && age >= 15) {
+            groups.push({
+                ageRange: [15, 90],
+                tasks: [
+                    {
+                        title: '打脸时刻',
+                        description: '有人当众质疑你只是运气好，这口气你准备怎么出？',
+                        choices: [
+                            { text: '先忍住，暗中布局', effect: { INT: 2, SPR: 1 }, result: '你忍住火气，开始布局更大的回击。', relationship: { name: '宿敌韩岳', delta: -15, event: '你和韩岳的梁子彻底结下' }, flags: ['villain:scheme'] },
+                            { text: '当场反击，直接踩回去', effect: { CHR: 1, STR: 1 }, result: '你毫不留情地反击，对方当场下不来台。', relationship: { name: '围观者', delta: 8, event: '越来越多人开始惧怕你的锋芒' }, flags: ['villain:dominant'] },
+                        ],
+                    }
+                ],
+            });
+        }
+
+        if (systemId === 'signin' && age >= 12) {
+            groups.push({
+                ageRange: [12, 90],
+                tasks: [
+                    {
+                        title: '暴击签到',
+                        description: '签到系统触发稀有暴击，你要现在领取，还是累积到未来？',
+                        choices: [
+                            { text: '立刻领取', effect: { MNY: 1, SPR: 1, STR: 1 }, result: '你把暴击奖励立刻变现，眼前状态明显变好。', item: '暴击签到礼包', itemDesc: '签到系统送来的好运包', itemRarity: 'rare', flags: ['checkin:cashout'] },
+                            { text: '继续累计', effect: { INT: 1, SPR: 1 }, result: '你选择把好运压进未来，希望换来更大的爆发。', milestone: '签到路线开始累计大奖概率', flags: ['checkin:stack'] },
+                        ],
+                    }
+                ],
+            });
+        }
+
+        return groups;
     }
 
     /**

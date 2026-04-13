@@ -26,10 +26,12 @@ function aiApiPlugin(env) {
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
     return {
+        root: 'public',
         base: './',
         plugins: [aiApiPlugin(env)],
         build: {
-            outDir: 'template/public',
+            outDir: '../template/public',
+            emptyOutDir: true,
         },
     };
 });
