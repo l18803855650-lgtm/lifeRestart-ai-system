@@ -200,7 +200,7 @@ class MainActivity : AppCompatActivity() {
         private val prefs = appContext.getSharedPreferences("life_restart_ai", Context.MODE_PRIVATE)
 
         @JavascriptInterface
-        fun isOfflineApk(): Boolean = false
+        fun isOfflineApk(): Boolean = true
 
         @JavascriptInterface
         fun supportsDirectAi(): Boolean = true

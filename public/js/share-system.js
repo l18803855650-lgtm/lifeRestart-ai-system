@@ -3,6 +3,46 @@
  * 处理系统分享码、人生报告卡生成（雷达图）及分享功能
  */
 
+function normalizeSystem(system) {
+    if (!system) return { name: '默认系统', emoji: '🎮' };
+    if (typeof system === 'string') return { name: system, emoji: '🎮' };
+    return {
+        name: system.name || '默认系统',
+        emoji: system.emoji || '🎮',
+    };
+}
+
+function normalizeTalentGrade(grade) {
+    if (typeof grade === 'number') return Math.max(0, Math.min(4, grade));
+    const mapping = { C: 0, B: 1, A: 2, S: 3, SS: 4, SSR: 4 };
+    return mapping[String(grade || '').toUpperCase()] ?? 0;
+}
+
+function getTalentGradeColor(grade) {
+    const numeric = normalizeTalentGrade(grade);
+    const colors = {
+        0: '#9ca3af',
+        1: '#22c55e',
+        2: '#3b82f6',
+        3: '#a855f7',
+        4: '#f59e0b',
+    };
+    return colors[numeric] || colors[0];
+}
+
+function normalizeDeathReasonText(value) {
+    if (!value) return '寿终正寝';
+    const known = {
+        health: '因病离世',
+        despair: '心力交瘁而终',
+        oldAge: '寿终正寝',
+        random: '意外离世',
+        madness: '理智崩溃而亡',
+        apocalypse: '倒在末世浩劫中',
+    };
+    return known[value] || value;
+}
+
 export class ShareSystem {
     constructor() {
         this.canvas = null;
@@ -114,15 +154,21 @@ export class ShareSystem {
         const milestoneBonus = milestones.length * 5;
 
         const talents = lifeData.talents || [];
-        const gradeValues = { S: 20, A: 15, B: 10, C: 5 };
+        const gradeValues = { 0: 4, 1: 8, 2: 12, 3: 18, 4: 24 };
         const talentBonus = talents.reduce((sum, t) => {
-            return sum + (gradeValues[t.grade] || 0);
+            return sum + (gradeValues[normalizeTalentGrade(t.grade)] || 0);
         }, 0);
 
         const age = lifeData.age || 0;
         const ageBonus = Math.floor(age / 10);
 
-        return Math.min(500, base + milestoneBonus + talentBonus + ageBonus);
+        const customBonus = (lifeData.customStats || []).reduce((sum, stat) => {
+            const max = Math.max(1, stat.max || 100);
+            const current = Math.max(0, stat.current ?? stat.initial ?? 0);
+            return sum + Math.min(6, (current / max) * 6);
+        }, 0);
+
+        return Math.min(500, base + milestoneBonus + talentBonus + ageBonus + customBonus);
     }
 
     /**
@@ -167,7 +213,7 @@ export class ShareSystem {
         this._drawGlowText(ctx, '人生终章', W / 2, 48, '#ffffff', 28);
 
         // 3. 系统徽章
-        const sys = lifeData.system || { name: '默认系统', emoji: '🎮' };
+        const sys = normalizeSystem(lifeData.system);
         this._drawBadge(
             ctx,
             `${sys.emoji} ${sys.name}`,
@@ -180,7 +226,8 @@ export class ShareSystem {
         ctx.font = '14px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.textAlign = 'center';
-        const infoText = `享年${lifeData.age || '??'}岁 | ${lifeData.deathReason || '寿终正寝'}`;
+        const deathReasonText = lifeData.deathReasonText || normalizeDeathReasonText(lifeData.deathReason);
+        const infoText = `享年${lifeData.age || '??'}岁 | ${deathReasonText}`;
         ctx.fillText(infoText, W / 2, 110);
 
         // 5-6. 雷达图及属性值
@@ -231,15 +278,8 @@ export class ShareSystem {
             const badgeY = 440;
             const totalWidth = talents.length * 80;
             let startX = (W - totalWidth) / 2 + 40;
-            const gradeColors = {
-                S: '#FF6B6B',
-                A: '#FFB347',
-                B: '#87CEEB',
-                C: '#98D8A0',
-            };
             talents.forEach((talent) => {
-                const color =
-                    gradeColors[talent.grade] || 'rgba(255,255,255,0.3)';
+                const color = getTalentGradeColor(talent.grade);
                 this._drawBadge(
                     ctx,
                     `${talent.name}`,
@@ -336,8 +376,8 @@ export class ShareSystem {
             ctx.stroke();
         }
 
-        // 计算归一化值（属性值上限按100算）
-        const maxVal = 100;
+        // 计算归一化值（人生属性主标尺按 10，超出则自动扩容）
+        const maxVal = Math.max(10, ...values.map((v) => Math.ceil(Math.max(0, v) / 5) * 5));
         const normalizedValues = values.map((v) =>
             Math.min(1, Math.max(0, v / maxVal))
         );
@@ -614,15 +654,16 @@ export class ShareSystem {
         const judgeObj = lifeData.judge || this.getJudge(score);
         const judgeText =
             typeof judgeObj === 'object' ? judgeObj.text : judgeObj;
-        const sys = lifeData.system || { name: '默认系统' };
+        const sys = normalizeSystem(lifeData.system);
         const highlights = lifeData.highlights || [];
+        const customStats = lifeData.customStats || [];
 
         const lines = [
             '🎮 人生重开模拟器 - AI系统版',
             '━━━━━━━━━━━━━━━━',
-            `📋 系统：${sys.name}`,
+            `📋 系统：${sys.emoji} ${sys.name}`,
             `⏰ 享年：${lifeData.age || '??'}岁`,
-            `💀 死因：${lifeData.deathReason || '寿终正寝'}`,
+            `💀 死因：${lifeData.deathReasonText || normalizeDeathReasonText(lifeData.deathReason)}`,
             '━━━━━━━━━━━━━━━━',
             '📊 最终属性：',
             `😊 颜值: ${props.CHR || 0} | 🧠 智力: ${props.INT || 0}`,
@@ -631,6 +672,10 @@ export class ShareSystem {
             '━━━━━━━━━━━━━━━━',
             `🏆 评价：${judgeText}（${score}分）`,
         ];
+
+        if (customStats.length > 0) {
+            lines.push(`✨ 系统成长：${customStats.map((stat) => `${stat.icon || '✨'}${stat.name}${stat.current ?? stat.initial ?? 0}`).join(' | ')}`);
+        }
 
         if (highlights.length > 0) {
             lines.push(`📝 一句话：${highlights[0]}`);

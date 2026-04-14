@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
         root: 'public',
         base: './',
         plugins: [aiApiPlugin(env)],
+        test: {
+            root: '.',
+            include: ['tests/**/*.spec.js'],
+        },
         build: {
             outDir: '../dist',
             emptyOutDir: true,

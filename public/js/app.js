@@ -6,7 +6,7 @@
  */
 
 import { aiService, PROVIDERS } from './ai-service.js';
-import { gameEngine, TALENT_POOL, PROPERTIES } from './game-engine.js';
+import { gameEngine, TALENT_POOL, PROPERTIES, getDeathReasonText } from './game-engine.js';
 import { systemManager, PRESET_SYSTEMS } from './system-manager.js';
 import { memoryEngine } from './memory-engine.js';
 import { chatTerminal } from './chat-terminal.js';
@@ -524,18 +524,28 @@ class App {
             allSystems.forEach(sys => {
                 const card = _createElement('div', 'system-card');
                 card.dataset.systemId = sys.id;
+                card.tabIndex = 0;
+                card.setAttribute('role', 'button');
+                card.setAttribute('aria-label', `选择系统 ${sys.name}`);
                 card.innerHTML = `
                     <div class="system-card-emoji">${sys.emoji || '🎮'}</div>
                     <div class="system-card-name">${_escapeHtml(sys.name)}</div>
                     <div class="system-card-grade">${_renderStars(sys.grade || 0)}</div>
                     <div class="system-card-desc">${_escapeHtml(sys.description || '')}</div>
                 `;
-                card.onclick = () => {
+                const activateCard = () => {
                     // 清除其他选中状态
                     grid.querySelectorAll('.system-card').forEach(c => c.classList.remove('selected', 'glow'));
                     card.classList.add('selected', 'glow');
                     this._selectedSystemId = sys.id;
                     if (confirmBtn) confirmBtn.disabled = false;
+                };
+                card.onclick = activateCard;
+                card.onkeydown = (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        activateCard();
+                    }
                 };
                 grid.appendChild(card);
             });
@@ -595,13 +605,20 @@ class App {
         if (!page) return;
 
         const drawBtn = page.querySelector('#btn-draw-talents');
+        const redrawBtn = page.querySelector('#btn-redraw');
         const talentGrid = page.querySelector('#talent-grid');
         const confirmBtn = page.querySelector('#btn-talent-confirm');
         const countDisplay = page.querySelector('#talent-select-count');
 
         this._drawnTalents = [];
         this._selectedTalentIds = new Set();
+        this._talentRedrawsLeft = 2;
         if (drawBtn) drawBtn.style.display = '';
+        if (redrawBtn) {
+            redrawBtn.style.display = 'none';
+            redrawBtn.disabled = false;
+            redrawBtn.textContent = `🔄 重新抽取（${this._talentRedrawsLeft}）`;
+        }
         if (confirmBtn) {
             confirmBtn.disabled = true;
             confirmBtn.style.display = '';
@@ -612,9 +629,7 @@ class App {
         if (countDisplay) countDisplay.textContent = '已选择 0/3';
         if (confirmBtn) confirmBtn.disabled = true;
 
-        // 十连抽按钮
-        if (drawBtn) {
-            drawBtn.onclick = () => {
+        const performDraw = () => {
                 try {
                     this._drawnTalents = gameEngine.drawTalents(10);
                 } catch (err) {
@@ -622,21 +637,24 @@ class App {
                     return;
                 }
 
-                this._selectedTalentIds = new Set();
-                if (countDisplay) countDisplay.textContent = '已选择 0/3';
-                if (confirmBtn) {
-                    confirmBtn.disabled = true;
-                    confirmBtn.style.display = '';
+                    this._selectedTalentIds = new Set();
+                    if (countDisplay) countDisplay.textContent = '已选择 0/3';
+                    if (confirmBtn) {
+                        confirmBtn.disabled = true;
+                        confirmBtn.style.display = '';
                 }
 
                 // 渲染天赋卡片
-                if (talentGrid) {
-                    talentGrid.innerHTML = '';
-                    this._drawnTalents.forEach((talent, index) => {
-                        const grade = talent.grade || 0;
-                        const card = _createElement('div', `talent-card ${GRADE_CLASS[grade] || ''}`);
-                        card.dataset.talentId = talent.id;
-                        card.style.borderColor = GRADE_BORDER[grade] || '#b0b0b0';
+                    if (talentGrid) {
+                        talentGrid.innerHTML = '';
+                        this._drawnTalents.forEach((talent, index) => {
+                            const grade = talent.grade || 0;
+                            const card = _createElement('div', `talent-card ${GRADE_CLASS[grade] || ''}`);
+                            card.dataset.talentId = talent.id;
+                            card.tabIndex = 0;
+                            card.setAttribute('role', 'button');
+                            card.setAttribute('aria-label', `选择天赋 ${talent.name}`);
+                            card.style.borderColor = GRADE_BORDER[grade] || '#b0b0b0';
 
                         // 高品质添加闪光效果
                         if (grade >= 3) card.classList.add('sparkle');
@@ -653,15 +671,42 @@ class App {
                         card.classList.add('card-flip');
 
                         // 点击选择
-                        card.onclick = () => this._toggleTalent(card, talent, countDisplay, confirmBtn);
+                            const toggleTalent = () => this._toggleTalent(card, talent, countDisplay, confirmBtn);
+                            card.onclick = toggleTalent;
+                            card.onkeydown = (event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    toggleTalent();
+                                }
+                            };
 
-                        talentGrid.appendChild(card);
-                    });
+                            talentGrid.appendChild(card);
+                        });
+                    }
+
+                    // 隐藏抽取按钮
+                    if (drawBtn) drawBtn.style.display = 'none';
+                    if (redrawBtn) {
+                        redrawBtn.style.display = this._talentRedrawsLeft > 0 ? '' : 'none';
+                        redrawBtn.textContent = `🔄 重新抽取（${this._talentRedrawsLeft}）`;
+                    }
+                    this.showToast('天赋已揭晓！请选择最多3个天赋', 'info');
+                };
+
+        // 十连抽按钮
+        if (drawBtn) {
+            drawBtn.onclick = performDraw;
+        }
+
+        if (redrawBtn) {
+            redrawBtn.onclick = () => {
+                if (this._talentRedrawsLeft <= 0) return;
+                this._talentRedrawsLeft -= 1;
+                performDraw();
+                redrawBtn.textContent = `🔄 重新抽取（${this._talentRedrawsLeft}）`;
+                if (this._talentRedrawsLeft <= 0) {
+                    redrawBtn.style.display = 'none';
                 }
-
-                // 隐藏抽取按钮
-                drawBtn.style.display = 'none';
-                this.showToast('天赋已揭晓！请选择最多3个天赋', 'info');
             };
         }
 
@@ -716,6 +761,10 @@ class App {
         const container = page.querySelector('#property-controls');
         const remainDisplay = page.querySelector('#remaining-points');
         const confirmBtn = page.querySelector('#btn-property-confirm');
+        const recommendBtn = page.querySelector('#btn-property-recommend');
+        const randomBtn = page.querySelector('#btn-property-random');
+        const resetBtn = page.querySelector('#btn-property-reset');
+        const customStatsPanel = page.querySelector('#dynamic-stats-panel');
         const customStatsArea = page.querySelector('#custom-stats-area');
 
         // 初始化分配值
@@ -727,6 +776,16 @@ class App {
             const remain = totalPoints - used;
             if (remainDisplay) remainDisplay.textContent = `剩余点数: ${remain}`;
             return remain;
+        };
+
+        const renderAllocation = () => {
+            Object.keys(this._allocation).forEach((key) => this._updatePropertyDisplay(key));
+            updateRemaining();
+        };
+
+        const resetAllocation = () => {
+            this._allocation = { CHR: 0, INT: 0, STR: 0, MNY: 0, SPR: 0 };
+            renderAllocation();
         };
 
         // 渲染属性控制条
@@ -774,20 +833,77 @@ class App {
         if (customStatsArea) {
             const activeSystem = systemManager.getActiveSystem();
             if (activeSystem && activeSystem.customStats && activeSystem.customStats.length > 0) {
-                customStatsArea.innerHTML = '<h3>系统特殊属性</h3>';
+                customStatsArea.innerHTML = '';
                 activeSystem.customStats.forEach(stat => {
                     const div = _createElement('div', 'custom-stat-row',
                         `<span>${_escapeHtml(stat.name || stat.label)}</span>: <span>${stat.initial || 0}</span>`
                     );
                     customStatsArea.appendChild(div);
                 });
-                customStatsArea.style.display = 'block';
+                if (customStatsPanel) customStatsPanel.style.display = 'block';
             } else {
-                customStatsArea.style.display = 'none';
+                if (customStatsPanel) customStatsPanel.style.display = 'none';
             }
         }
 
-        updateRemaining();
+        renderAllocation();
+
+        if (recommendBtn) {
+            recommendBtn.onclick = () => {
+                const activeSystem = systemManager.getActiveSystem();
+                const weights = activeSystem?.weights || {};
+                const weightEntries = Object.keys(PROPERTIES).map((key) => [key, Math.max(1, weights[key] || 1)]);
+                const weightSum = weightEntries.reduce((sum, [, weight]) => sum + weight, 0);
+
+                resetAllocation();
+
+                let remaining = totalPoints;
+                weightEntries.forEach(([key, weight], index) => {
+                    const suggested = index === weightEntries.length - 1
+                        ? remaining
+                        : Math.min(10, Math.floor((totalPoints * weight) / weightSum));
+                    this._allocation[key] = Math.min(10, suggested);
+                    remaining -= this._allocation[key];
+                });
+
+                const sortedKeys = [...weightEntries].sort((a, b) => b[1] - a[1]).map(([key]) => key);
+                let cursor = 0;
+                while (remaining > 0) {
+                    const key = sortedKeys[cursor % sortedKeys.length];
+                    if (this._allocation[key] < 10) {
+                        this._allocation[key] += 1;
+                        remaining -= 1;
+                    }
+                    cursor += 1;
+                }
+
+                renderAllocation();
+                this.showToast('已按当前系统推荐完成分配', 'success');
+            };
+        }
+
+        if (randomBtn) {
+            randomBtn.onclick = () => {
+                resetAllocation();
+                let remaining = totalPoints;
+                const keys = Object.keys(PROPERTIES);
+                while (remaining > 0) {
+                    const key = keys[Math.floor(Math.random() * keys.length)];
+                    if (this._allocation[key] >= 10) continue;
+                    this._allocation[key] += 1;
+                    remaining -= 1;
+                }
+                renderAllocation();
+                this.showToast('已随机完成分配', 'info');
+            };
+        }
+
+        if (resetBtn) {
+            resetBtn.onclick = () => {
+                resetAllocation();
+                this.showToast('已重置属性分配', 'info');
+            };
+        }
 
         // 确认按钮
         if (confirmBtn) {
@@ -894,6 +1010,7 @@ class App {
         if (!page) return;
 
         const ageBadge = page.querySelector('#age-badge');
+        const systemEmoji = page.querySelector('#system-emoji');
         const systemName = page.querySelector('#system-name');
         const statsArea = page.querySelector('#stats-bars');
         const customStatsArea = page.querySelector('#sim-custom-stats');
@@ -902,6 +1019,7 @@ class App {
 
         const activeSystem = systemManager.getActiveSystem() || (this._selectedSystemId ? systemManager.getSystem(this._selectedSystemId) : null);
         if (systemName && activeSystem) systemName.textContent = activeSystem.name;
+        if (systemEmoji && activeSystem) systemEmoji.textContent = activeSystem.emoji || '🎮';
         if (ageBadge) ageBadge.textContent = `${Math.max(0, gameEngine.getCurrentAge())} 岁`;
 
         this._renderStatsBars(statsArea);
@@ -994,12 +1112,17 @@ class App {
         }
 
         if (result.propertyChanges) {
+            const customStatMap = new Map(gameEngine.getCustomStats().map((stat) => [stat.id, stat]));
             const changesText = Object.entries(result.propertyChanges)
                 .filter(([, v]) => v !== 0)
                 .map(([k, v]) => {
                     const prop = PROPERTIES[k];
+                    const customStat = customStatMap.get(k);
                     const sign = v > 0 ? '+' : '';
-                    return `${prop ? prop.icon : k} ${sign}${v}`;
+                    if (prop) {
+                        return `${prop.icon} ${sign}${v}`;
+                    }
+                    return `${customStat?.icon || '✨'} ${customStat?.name || k} ${sign}${v}`;
                 })
                 .join('  ');
             if (changesText) {
@@ -1010,11 +1133,11 @@ class App {
         if (result.isEnd) {
             const deathOverlay = _createElement('div', 'death-overlay');
             deathOverlay.innerHTML = `
-                <div class="death-content">
-                    <div class="death-icon">💀</div>
-                    <div class="death-text">${_escapeHtml(result.deathReason || '你的一生结束了')}</div>
-                </div>
-            `;
+                    <div class="death-content">
+                        <div class="death-icon">💀</div>
+                        <div class="death-text">${_escapeHtml(getDeathReasonText(result.deathReason) || '你的一生结束了')}</div>
+                    </div>
+                `;
             yearBlock.appendChild(deathOverlay);
         }
 
@@ -1082,19 +1205,19 @@ class App {
     /** 渲染系统自定义属性条 */
     _renderCustomStatsBars(container) {
         if (!container) return;
-        const activeSystem = systemManager.getActiveSystem();
-        if (!activeSystem || !activeSystem.customStats || activeSystem.customStats.length === 0) {
+        const customStats = gameEngine.getCustomStats();
+        if (!customStats || customStats.length === 0) {
             container.style.display = 'none';
             return;
         }
         container.style.display = 'block';
         container.innerHTML = '';
-        activeSystem.customStats.forEach(stat => {
+        customStats.forEach(stat => {
             const val = stat.current !== undefined ? stat.current : (stat.initial || 0);
             const max = stat.max || 100;
             const pct = Math.min(100, Math.max(0, (val / max) * 100));
             const row = _createElement('div', 'stat-bar-row custom-stat', `
-                <span class="stat-label">${_escapeHtml(stat.name || stat.label)}</span>
+                <span class="stat-label">${_escapeHtml(stat.icon || '✨')} ${_escapeHtml(stat.name || stat.label)}</span>
                 <div class="stat-bar-track">
                     <div class="stat-bar-fill" style="width:${pct}%;background:${stat.color || '#aaa'}"></div>
                 </div>
@@ -1126,7 +1249,11 @@ class App {
         chatTerminal.setGameStateProvider(() => ({
             age: gameEngine.getCurrentAge(),
             properties: gameEngine.getProperties(),
+            customStats: gameEngine.getCustomStats(),
             alive: gameEngine.isAlive(),
+            systemName: systemManager.getActiveSystem()?.name || gameEngine.getState().system?.name,
+            talents: gameEngine.getSelectedTalents(),
+            memories: memoryEngine.getRecentEvents ? memoryEngine.getRecentEvents(8) : [],
         }));
 
         // 渲染已有消息
@@ -1154,17 +1281,22 @@ class App {
 
         // 属性变化回调
         chatTerminal.onPropertyChange = (effects) => {
-            // 更新模拟页面属性条
-            const simStats = this.pages['page-life-simulation']?.querySelector('#stats-bars');
-            this._renderStatsBars(simStats);
+            const applied = gameEngine.applyExternalEffects(effects, { source: '系统对话' });
+            this._updateSimulationUI();
+            this._persistProgress();
 
             // 显示效果提示
-            if (effects && typeof effects === 'object') {
-                const parts = Object.entries(effects)
+            if (applied && typeof applied === 'object') {
+                const customStatMap = new Map(gameEngine.getCustomStats().map((stat) => [stat.id, stat]));
+                const parts = Object.entries(applied)
                     .filter(([, v]) => v !== 0)
                     .map(([k, v]) => {
                         const p = PROPERTIES[k];
-                        return `${p ? p.icon : k} ${v > 0 ? '+' : ''}${v}`;
+                        const customStat = customStatMap.get(k);
+                        if (p) {
+                            return `${p.icon} ${v > 0 ? '+' : ''}${v}`;
+                        }
+                        return `${customStat?.icon || '✨'}${customStat?.name || k} ${v > 0 ? '+' : ''}${v}`;
                     });
                 if (parts.length > 0) {
                     this.showToast(`属性变化: ${parts.join(' ')}`, 'info');
@@ -1262,6 +1394,8 @@ class App {
         // 构建完整的人生数据
         const lifeData = {
             ...finalStats,
+            system: finalStats.system,
+            deathReasonText: finalStats.deathReasonText,
             score: lifeScore,
             judge: judgeResult,
             lifeEvents: gameEngine.getLifeEvents(),
@@ -1296,18 +1430,44 @@ class App {
             }
         }
 
-        // 传记文本
+        // 传记文本（先显示结构化摘要，再异步补上完整传记）
         if (bioText) {
-            const deathText = finalStats.deathReason || '寿终正寝';
+            const deathText = finalStats.deathReasonText || getDeathReasonText(finalStats.deathReason);
             const propSummary = Object.entries(finalStats.propEvaluations || {})
-                .map(([, p]) => `${p.icon} ${p.name}: ${p.value}(${p.judge})`)
-                .join(' | ');
+                .map(([, p]) => `${p.icon} ${p.name}: ${p.value}（${p.judge}）`)
+                .join(' · ');
+            const customStatSummary = (finalStats.customStats || [])
+                .map((stat) => `${stat.icon || '✨'} ${stat.name}: ${stat.current ?? stat.initial ?? 0}`)
+                .join(' · ');
+            const highlightSummary = (finalStats.highlights || []).slice(0, 3)
+                .map((text) => `<li>${_escapeHtml(text)}</li>`)
+                .join('');
+
             bioText.innerHTML = `
                 <p>享年 <strong>${finalStats.age}</strong> 岁，${_escapeHtml(deathText)}。</p>
-                <p>属性总评: ${propSummary}</p>
-                <p>天赋: ${(finalStats.talents || []).map(t => _escapeHtml(t.name)).join('、') || '无'}</p>
-                <p>系统: ${_escapeHtml(finalStats.system || '无')}</p>
+                <p>伴生系统：${_escapeHtml(finalStats.system?.emoji || '🎮')} ${_escapeHtml(finalStats.system?.name || '无')}</p>
+                <p>属性总评：${propSummary}</p>
+                <p>天赋：${(finalStats.talents || []).map(t => _escapeHtml(t.name)).join('、') || '无'}</p>
+                ${customStatSummary ? `<p>系统成长：${customStatSummary}</p>` : ''}
+                ${highlightSummary ? `<div class="bio-highlights"><strong>高光片段</strong><ul>${highlightSummary}</ul></div>` : ''}
+                <p class="bio-loading">正在整理完整人生传记...</p>
             `;
+
+            const loadingEl = bioText.querySelector('.bio-loading');
+            gameEngine.generateSummary()
+                .then((summary) => {
+                    const loading = bioText.querySelector('.bio-loading');
+                    if (!loading) return;
+                    const paragraph = document.createElement('p');
+                    paragraph.className = 'bio-full-text';
+                    paragraph.textContent = summary?.biography || '这是一段尚待书写的人生。';
+                    loading.replaceWith(paragraph);
+                })
+                .catch((err) => {
+                    if (loadingEl) {
+                        loadingEl.textContent = `完整传记整理失败：${err.message}`;
+                    }
+                });
         }
 
         // 里程碑时间线

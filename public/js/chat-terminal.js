@@ -439,6 +439,9 @@ export class ChatTerminal {
         if (gameState.systemName) {
             lines.push(`🔧 伴生系统: ${gameState.systemName}`);
         }
+        if (gameState.customStats && gameState.customStats.length > 0) {
+            lines.push(`✨ 系统成长: ${gameState.customStats.map((stat) => `${stat.icon || '✨'}${stat.name}${stat.current ?? stat.initial ?? 0}`).join(' | ')}`);
+        }
         if (gameState.talents && gameState.talents.length > 0) {
             lines.push(`🎯 天赋: ${gameState.talents.map(t => t.name || t).join('、')}`);
         }
@@ -543,7 +546,7 @@ export class ChatTerminal {
             /* 解析单个或多个属性变化，如 "INT+2, CHR-1" */
             const parts = effectStr.split(/[,，]\s*/);
             for (const part of parts) {
-                const propMatch = part.trim().match(/^(CHR|INT|STR|MNY|SPR)([+-])(\d+)$/);
+                const propMatch = part.trim().match(/^([A-Za-z_]+)([+-])(\d+)$/);
                 if (propMatch) {
                     const prop = propMatch[1];
                     const sign = propMatch[2] === '+' ? 1 : -1;
@@ -591,7 +594,7 @@ export class ChatTerminal {
         }
 
         sysContent += '\n回复长度控制在50-150字以内，简洁有力，保持角色扮演。';
-        sysContent += '\n如果需要给宿主属性变化，用这个格式标注：[属性变化: 属性名+数值]，属性名为CHR/INT/STR/MNY/SPR。';
+        sysContent += '\n如果需要给宿主属性变化，用这个格式标注：[属性变化: 属性名+数值]。基础属性名为CHR/INT/STR/MNY/SPR；若当前世界有系统特殊属性，也可以直接写对应属性ID。';
 
         messages.push({ role: 'system', content: sysContent });
 
@@ -633,6 +636,12 @@ export class ChatTerminal {
         if (p.MNY !== undefined) parts.push(`家境${p.MNY}`);
         if (p.SPR !== undefined) parts.push(`快乐${p.SPR}`);
         if (gameState.systemName) parts.push(`系统:${gameState.systemName}`);
+        if (Array.isArray(gameState.customStats) && gameState.customStats.length > 0) {
+            parts.push(`系统成长:${gameState.customStats.map((stat) => `${stat.name}${stat.current ?? stat.initial ?? 0}`).join('、')}`);
+        }
+        if (Array.isArray(gameState.talents) && gameState.talents.length > 0) {
+            parts.push(`天赋:${gameState.talents.map((talent) => talent.name).join('、')}`);
+        }
         return parts.join('，') || '初始状态';
     }
 

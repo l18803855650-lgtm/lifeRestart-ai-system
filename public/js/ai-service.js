@@ -521,11 +521,18 @@ class AIService {
      * 构建人生总结提示词
      */
     _buildSummaryPrompt(lifeData) {
-        const { age, properties, events, talents, system, deathReason } = lifeData;
+        const { age, properties, customStats, events, talents, system, deathReason, deathReasonText } = lifeData;
         const propDesc = this._formatProperties(properties);
+        const customDesc = Array.isArray(customStats) && customStats.length
+            ? `系统成长：${customStats.map((stat) => `${stat.name}:${stat.current ?? stat.initial ?? 0}`).join(' | ')}`
+            : '';
         const talentDesc = talents?.length ? `天赋：${talents.join('、')}` : '';
         const eventSummary = events?.length
-            ? events.slice(-20).map((e, i) => `${i}岁：${e}`).join('\n')
+            ? events.slice(-20).map((entry) => {
+                const ageLabel = entry?.age ?? '?';
+                const texts = Array.isArray(entry?.events) ? entry.events.join('；') : String(entry || '');
+                return `${ageLabel}岁：${texts}`;
+            }).join('\n')
             : '（无事件记录）';
 
         const systemPrompt = [
@@ -539,9 +546,10 @@ class AIService {
 
         const userPrompt = [
             `享年：${age ?? 0} 岁`,
-            `死因：${deathReason || '寿终正寝'}`,
-            `世界体系：${system || '普通人生'}`,
+            `死因：${deathReasonText || deathReason || '寿终正寝'}`,
+            `世界体系：${system?.name || system || '普通人生'}`,
             propDesc,
+            customDesc,
             talentDesc,
             `人生轨迹：\n${eventSummary}`,
             '请撰写人生传记和墓志铭。'
@@ -1001,7 +1009,7 @@ class AIService {
      * 本地生成人生总结
      */
     _localGenerateSummary(lifeData) {
-        const { age = 0, properties = {}, events = [], deathReason, system } = lifeData;
+        const { age = 0, properties = {}, events = [], deathReason, deathReasonText, system, customStats = [] } = lifeData;
         const { CHR = 5, INT = 5, STR = 5, MNY = 5, SPR = 5 } = properties;
 
         // 评价等级
@@ -1035,16 +1043,23 @@ class AIService {
         // 重要事件摘要
         const keyEvents = events.slice(-5);
         const eventText = keyEvents.length
-            ? `生命中的重要片段包括：${keyEvents.join('；')}。`
+            ? `生命中的重要片段包括：${keyEvents.map((entry) => `${entry.age ?? '?'}岁：${Array.isArray(entry.events) ? entry.events.join('；') : entry}`).join('；')}。`
             : '';
 
-        const deathText = deathReason ? `最终因${deathReason}离开了这个世界。` : '最终安详地离开了这个世界。';
-        const systemText = system ? `在${system}的世界中，` : '';
+        const customText = customStats.length
+            ? `系统成长方面，${customStats.map((stat) => `${stat.name}${stat.current ?? stat.initial ?? 0}`).join('、')}。`
+            : '';
+        const deathText = deathReason || deathReasonText
+            ? `最终${deathReasonText || deathReason}，离开了这个世界。`
+            : '最终安详地离开了这个世界。';
+        const systemName = system?.name || system;
+        const systemText = systemName ? `在${systemName}的世界中，` : '';
 
         const biography = [
             `【${gradeDesc}】`,
             `${systemText}这是一段${age}年的人生旅程。`,
             highlightText,
+            customText,
             eventText,
             deathText,
             '',

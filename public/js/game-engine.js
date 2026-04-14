@@ -408,7 +408,14 @@ const DEATH_REASONS = {
     despair: '你的内心已经无法承受生活的重压，灵魂在沉默中慢慢熄灭。',
     oldAge:  '你安详地离开了这个世界，走完了漫长而充实的一生。',
     random:  '命运无常，一场突如其来的意外带走了你。',
+    madness: '理智在不可名状的低语中彻底崩塌，你被深渊吞没。',
+    apocalypse: '末世的寒风吹熄了最后的火种，你倒在黎明之前。',
 };
+
+export function getDeathReasonText(reason) {
+    if (!reason) return DEATH_REASONS.oldAge;
+    return DEATH_REASONS[reason] || reason;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 工具函数
@@ -650,6 +657,9 @@ export class GameEngine {
         /** @type {number} 自然寿命上限（基于体质计算） */
         this._naturalLifespan = 80;
 
+        /** @type {Object.<string, number>} 系统自定义属性实时值 */
+        this._customStats = {};
+
         /** @type {Set<string>} 已触发的特殊事件 ID，用于去重 */
         this._triggeredSpecials = new Set();
 
@@ -683,6 +693,7 @@ export class GameEngine {
         this._currentTask = null;
         this._deathReason = null;
         this._naturalLifespan = 80;
+        this._customStats = {};
         this._triggeredSpecials = new Set();
         this._lastTaskAge = -10;
         this._storyFlags = new Set();
@@ -704,6 +715,7 @@ export class GameEngine {
      */
     setSystem(system) {
         this._system = system ? deepClone(system) : null;
+        this._initializeCustomStatsFromSystem(this._system);
         return this;
     }
 
@@ -1211,6 +1223,7 @@ export class GameEngine {
             age: this._age,
             alive: this._alive,
             properties: this.getProperties(),
+            customStats: this.getCustomStats(),
             totalPoints: this._totalPoints,
             remainingPoints: this.getRemainingPoints(),
             propertiesLocked: this._propertiesLocked,
@@ -1250,6 +1263,7 @@ export class GameEngine {
             currentTask: deepClone(this._currentTask),
             deathReason: this._deathReason,
             naturalLifespan: this._naturalLifespan,
+            customStats: deepClone(this._customStats),
             systemId: this._system?.id || null,
             system: deepClone(this._system),
             triggeredSpecials: Array.from(this._triggeredSpecials),
@@ -1281,10 +1295,14 @@ export class GameEngine {
         this._deathReason = data.deathReason || null;
         this._naturalLifespan = typeof data.naturalLifespan === 'number' ? data.naturalLifespan : 80;
         this._system = restoredSystem ? deepClone(restoredSystem) : (data.system ? deepClone(data.system) : null);
+        this._customStats = data.customStats && typeof data.customStats === 'object'
+            ? { ...data.customStats }
+            : {};
         this._triggeredSpecials = new Set(Array.isArray(data.triggeredSpecials) ? data.triggeredSpecials : []);
         this._lastTaskAge = typeof data.lastTaskAge === 'number' ? data.lastTaskAge : -10;
         this._storyFlags = new Set(Array.isArray(data.storyFlags) ? data.storyFlags : []);
         this._lastDecisionAge = typeof data.lastDecisionAge === 'number' ? data.lastDecisionAge : -10;
+        this._initializeCustomStatsFromSystem(this._system, this._customStats);
 
         if (data.memory) {
             try {
@@ -1303,6 +1321,7 @@ export class GameEngine {
             relationships: memoryEngine.getRelationships(6),
             storyFlags: Array.from(this._storyFlags),
             currentTask: this._currentTask ? deepClone(this._currentTask) : null,
+            customStats: this.getCustomStats(),
         };
     }
 
@@ -1324,13 +1343,17 @@ export class GameEngine {
         const lifeData = {
             age: this._age,
             properties: this.getProperties(),
+            customStats: this.getCustomStats(),
             talents: this._selectedTalents.map(t => t.name),
-            system: this._system ? this._system.name : null,
+            system: this._system
+                ? { id: this._system.id, name: this._system.name, emoji: this._system.emoji || '🎮' }
+                : null,
             events: this._lifeEvents.map(y => ({
                 age: y.age,
                 events: y.events.map(e => e.text),
             })),
             deathReason: this._deathReason,
+            deathReasonText: getDeathReasonText(this._deathReason),
             score,
         };
 
@@ -1387,7 +1410,17 @@ export class GameEngine {
         // 快乐加成（最高 5 分）
         const sprBonus = Math.min(5, Math.floor(props.SPR / 2));
 
-        return Math.round(propScore + ageScore + milestoneScore + eventScore + sprBonus);
+        // 系统成长加成（最高 10 分）
+        const customStats = this.getCustomStats();
+        const customScore = customStats.length > 0
+            ? Math.min(10, Math.round(customStats.reduce((sum, stat) => {
+                const max = Math.max(1, stat.max || 100);
+                const current = Math.max(0, stat.current ?? stat.initial ?? 0);
+                return sum + Math.min(1, current / max);
+            }, 0) * 4))
+            : 0;
+
+        return Math.round(propScore + ageScore + milestoneScore + eventScore + sprBonus + customScore);
     }
 
     /**
@@ -1422,12 +1455,18 @@ export class GameEngine {
         return {
             age: this._age,
             properties: props,
+            customStats: this.getCustomStats(),
             propEvaluations,
             totalEvents,
             milestones: milestones.map(m => m.text),
             talents: this._selectedTalents.map(t => ({ name: t.name, grade: t.grade })),
-            system: this._system ? this._system.name : '无',
+            highlights: this._getLifeHighlights(5),
+            system: this._system
+                ? { id: this._system.id, name: this._system.name, emoji: this._system.emoji || '🎮' }
+                : { id: 'none', name: '无', emoji: '🎮' },
+            systemName: this._system ? this._system.name : '无',
             deathReason: this._deathReason,
+            deathReasonText: getDeathReasonText(this._deathReason),
         };
     }
 
@@ -1439,13 +1478,19 @@ export class GameEngine {
      * 应用属性变化并记录到变化表中
      */
     _applyPropertyChange(key, delta, changeRecord) {
-        if (!this._properties.hasOwnProperty(key)) return;
-        this._properties[key] += delta;
-        // 属性下限为 0（不设上限，天赋可以超过 10）
-        if (this._properties[key] < 0) this._properties[key] = 0;
+        if (this._properties.hasOwnProperty(key)) {
+            this._properties[key] += delta;
+            // 属性下限为 0（不设上限，天赋可以超过 10）
+            if (this._properties[key] < 0) this._properties[key] = 0;
 
-        if (changeRecord) {
-            changeRecord[key] = (changeRecord[key] || 0) + delta;
+            if (changeRecord) {
+                changeRecord[key] = (changeRecord[key] || 0) + delta;
+            }
+            return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(this._customStats, key)) {
+            this._applyCustomStatChange(key, delta, changeRecord);
         }
     }
 
@@ -1454,6 +1499,118 @@ export class GameEngine {
         for (const [key, delta] of Object.entries(effectMap)) {
             this._applyPropertyChange(key, delta, changeRecord);
         }
+    }
+
+    applyExternalEffects(effectMap, options = {}) {
+        if (!effectMap || typeof effectMap !== 'object') return {};
+
+        const changes = {};
+        this._applyEffectMap(effectMap, changes);
+        this._syncSystemCustomStatsSnapshot();
+
+        if (Object.keys(changes).length > 0 && this._age >= 0) {
+            const source = options.source || '系统赐福';
+            const summary = this._formatChangeSummary(changes);
+            const text = summary ? `【${source}】${summary}` : `【${source}】你的命运出现了新的波动。`;
+
+            this._appendCurrentYearEvent({
+                type: 'chat_effect',
+                text,
+                importance: 2,
+            });
+
+            try {
+                memoryEngine.addEvent(this._age, text, 1.5);
+            } catch (e) {
+                console.warn('记录对话效果到记忆失败：', e.message);
+            }
+        }
+
+        return changes;
+    }
+
+    getCustomStats() {
+        const statDefs = this._system?.customStats || [];
+        return statDefs.map((stat) => ({
+            ...deepClone(stat),
+            current: this._customStats[stat.id] ?? stat.initial ?? 0,
+        }));
+    }
+
+    _initializeCustomStatsFromSystem(system, existingValues = null) {
+        const nextStats = {};
+        const statDefs = system?.customStats || [];
+
+        statDefs.forEach((stat) => {
+            const fallback = stat.initial ?? 0;
+            const rawValue = existingValues && Object.prototype.hasOwnProperty.call(existingValues, stat.id)
+                ? existingValues[stat.id]
+                : fallback;
+            nextStats[stat.id] = this._clampCustomStatValue(stat, rawValue);
+        });
+
+        this._customStats = nextStats;
+        this._syncSystemCustomStatsSnapshot();
+    }
+
+    _syncSystemCustomStatsSnapshot() {
+        if (!this._system?.customStats) return;
+        this._system.customStats = this._system.customStats.map((stat) => ({
+            ...stat,
+            current: this._customStats[stat.id] ?? stat.initial ?? 0,
+        }));
+    }
+
+    _applyCustomStatChange(key, delta, changeRecord) {
+        const stat = this._system?.customStats?.find((item) => item.id === key);
+        if (!stat) return;
+
+        const before = this._customStats[key] ?? stat.initial ?? 0;
+        const after = this._clampCustomStatValue(stat, before + delta);
+        const actualDelta = after - before;
+
+        this._customStats[key] = after;
+        if (actualDelta !== 0 && changeRecord) {
+            changeRecord[key] = (changeRecord[key] || 0) + actualDelta;
+        }
+        this._syncSystemCustomStatsSnapshot();
+    }
+
+    _clampCustomStatValue(stat, value) {
+        let next = Number.isFinite(value) ? value : Number(value) || 0;
+        if (typeof stat.min === 'number') next = Math.max(stat.min, next);
+        if (typeof stat.max === 'number') next = Math.min(stat.max, next);
+        return next;
+    }
+
+    _formatChangeSummary(changes = {}) {
+        return Object.entries(changes)
+            .filter(([, delta]) => delta !== 0)
+            .map(([key, delta]) => {
+                const baseProp = PROPERTIES[key];
+                const customStat = this._system?.customStats?.find((stat) => stat.id === key);
+                const label = baseProp?.name || customStat?.name || key;
+                const icon = baseProp?.icon || customStat?.icon || '✨';
+                return `${icon}${label}${delta > 0 ? '+' : ''}${delta}`;
+            })
+            .join(' · ');
+    }
+
+    _getLifeHighlights(count = 5) {
+        const important = memoryEngine.getImportantEvents
+            ? memoryEngine.getImportantEvents(Math.max(count * 2, count))
+            : [];
+
+        const highlights = important
+            .filter((item) => item?.event)
+            .slice(0, count)
+            .map((item) => `${item.age}岁：${item.event}`);
+
+        if (highlights.length > 0) return highlights;
+
+        return this._lifeEvents
+            .flatMap((year) => year.events.map((evt) => `${year.age}岁：${evt.text}`))
+            .slice(-count);
     }
 
     _appendCurrentYearEvent(event) {
@@ -2128,6 +2285,7 @@ export class GameEngine {
      */
     _checkDeath(age) {
         const props = this._properties;
+        const custom = this._customStats;
 
         // 体质归零：因病去世
         if (props.STR <= 0) {
@@ -2139,8 +2297,20 @@ export class GameEngine {
             return { isDead: true, reason: 'despair' };
         }
 
+        if (typeof custom.sanity === 'number' && custom.sanity <= 0) {
+            return { isDead: true, reason: 'madness' };
+        }
+
+        if (typeof custom.survival === 'number' && custom.survival <= 0) {
+            return { isDead: true, reason: 'apocalypse' };
+        }
+
+        const effectiveLifespan = typeof custom.lifespan === 'number'
+            ? Math.max(this._naturalLifespan, custom.lifespan)
+            : this._naturalLifespan;
+
         // 超过自然寿命上限
-        if (age > this._naturalLifespan) {
+        if (age > effectiveLifespan) {
             return { isDead: true, reason: 'oldAge' };
         }
 
@@ -2160,7 +2330,7 @@ export class GameEngine {
      * 本地生成人生传记（AI 不可用时的兜底方案）
      */
     _generateLocalBiography(lifeData, rating) {
-        const { age, properties, talents, deathReason } = lifeData;
+        const { age, properties, talents, deathReason, system, customStats = [] } = lifeData;
         const props = properties;
         const lines = [];
 
@@ -2189,6 +2359,19 @@ export class GameEngine {
         }
         if (lowProps.length > 0) {
             lines.push(`但 ${lowProps.join('、')} 一直是短板。`);
+        }
+
+        if (system?.name) {
+            lines.push(`这一生始终与「${system.name}」相伴。`);
+        }
+
+        const notableCustomStats = customStats
+            .filter((stat) => (stat.current ?? stat.initial ?? 0) > (stat.initial ?? 0))
+            .slice(0, 3)
+            .map((stat) => `${stat.icon || '✨'}${stat.name} ${stat.current ?? stat.initial ?? 0}`);
+
+        if (notableCustomStats.length > 0) {
+            lines.push(`系统成长轨迹：${notableCustomStats.join('、')}。`);
         }
 
         lines.push('');
@@ -2224,7 +2407,7 @@ export class GameEngine {
 
         // 死因
         if (deathReason) {
-            lines.push(DEATH_REASONS[deathReason] || DEATH_REASONS.oldAge);
+            lines.push(getDeathReasonText(deathReason));
         }
 
         // 结语
