@@ -92,6 +92,14 @@ const VERSION = 'v2.0.0';
 
 class App {
     constructor() {
+        /** 核心服务引用 */
+        this.aiService = aiService;
+        this.gameEngine = gameEngine;
+        this.systemManager = systemManager;
+        this.memoryEngine = memoryEngine;
+        this.chatTerminal = chatTerminal;
+        this.shareSystem = shareSystem;
+
         /** 当前激活页面 ID */
         this.currentPage = 'page-start';
         /** 页面 DOM 引用缓存 */
@@ -134,7 +142,11 @@ class App {
         }
 
         // 恢复已保存的 AI 配置与继续游戏入口
-        this._restoreAiConfig();
+        try {
+            this._restoreAiConfig();
+        } catch (err) {
+            console.warn('[App] 恢复 AI 配置失败：', err.message);
+        }
         this._updateContinueButton();
 
         // 初始化起始页
@@ -260,7 +272,11 @@ class App {
     }
 
     _clearProgress() {
-        localStorage.removeItem(this._getSaveKey());
+        try {
+            localStorage.removeItem(this._getSaveKey());
+        } catch (err) {
+            console.warn('[App] 清空存档失败：', err.message);
+        }
         this._updateSaveStatus(null, '未存档');
         this._updateContinueButton();
     }
