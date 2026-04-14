@@ -58,6 +58,9 @@ const MAX_RETRIES = 3;
 // 重试基础延迟（毫秒）
 const BASE_RETRY_DELAY = 1000;
 
+// 系统回复对话框中保留的最近历史消息条数（仅用于 AI 上下文，不影响聊天终端显示）
+const MAX_CHAT_HISTORY_MESSAGES = 10;
+
 // ============================================================
 // AIService 类
 // ============================================================
@@ -520,7 +523,6 @@ class AIService {
         }
 
         if (Array.isArray(chatHistory) && chatHistory.length > 0) {
-            const MAX_CHAT_HISTORY_MESSAGES = 10;
             const recentHistory = chatHistory.slice(-MAX_CHAT_HISTORY_MESSAGES);
             for (const msg of recentHistory) {
                 if (msg.role === 'user') {

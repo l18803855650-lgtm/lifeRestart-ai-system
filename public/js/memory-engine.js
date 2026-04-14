@@ -128,9 +128,9 @@ export class MemoryEngine {
 
     /**
      * 更新已有关系（支持两种调用签名）
-     * @param {string} name - NPC名称
-     * @param {number|object} deltaOrUpdates - 好感度变化量（数字）或更新字段对象
-     * @param {string} [eventDesc] - 事件描述（当 deltaOrUpdates 为数字时使用）
+     * - 签名1: updateRelationship(name, delta, eventDesc?) — delta 为数字，表示好感度变化量
+     * - 签名2: updateRelationship(name, updates) — updates 为对象 { relation?, attitude?, eventDescription? }
+     * 若关系不存在则自动创建（好感度=0，关系=相识）。
      */
     updateRelationship(name, deltaOrUpdates, eventDesc) {
         // Auto-create if not exists
