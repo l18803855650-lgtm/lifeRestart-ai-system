@@ -1,15 +1,14 @@
-FROM node:alpine
-
-ENV NPM_CONFIG_LOGLEVEL info
+FROM node:22-alpine
 
 WORKDIR /usr/src/app
 
-COPY package*.json ./
+RUN corepack enable
 
-RUN npm install
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-EXPOSE 8080
-CMD ["yarn", "dev"]
+EXPOSE 5173
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]
 

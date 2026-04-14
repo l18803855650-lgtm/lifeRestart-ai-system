@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val webDistDir = rootProject.projectDir.parentFile.resolve("template/public")
+val webDistDir = rootProject.projectDir.parentFile.resolve("dist")
 val generatedAssetsRoot = layout.buildDirectory.dir("generated/offline-assets")
 val generatedAssetsDir = layout.buildDirectory.dir("generated/offline-assets/www")
 

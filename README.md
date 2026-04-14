@@ -1,56 +1,82 @@
-# Life Restart
+# lifeRestart AI System
 
-<a href="https://discord.gg/U3qrf49NMQ"><img src="https://img.shields.io/discord/883382868427014255?color=%23FEE75C&label=Discord&logo=discord&logoColor=white&style=for-the-badge" /></a>
+最新版仓库只保留当前可交付主线：
 
-English | [简体中文](./README-zh_CN.md)
+- `public/`：唯一前端源码
+- `android-offline/`：Android WebView 离线壳
+- `dist/`：前端构建产物（自动生成，不入库）
 
-## Introduction
+旧的 Laya / `src/` / xlsx 数据转换 / Jekyll 包装层已移除，不再作为现行代码路径。
 
-- Game Life Restart
+## 项目定位
 
-## Usage
+这是一个 **AI 系统流人生模拟器**：
 
-<details>
-<summary><strong>Web Version</strong></summary>
-<br />
+- BYOK（用户自行填写模型 API Key）
+- 本地规则兜底，没 Key 也能玩
+- 多伴生系统玩法
+- 聊天终端、任务分支、自动/手动存档
+- Android APK 可直接打包交付
 
+## 当前目录结构
+
+```text
+.
+├── public/                 # 现行 Web 前端源码
+│   ├── index.html
+│   ├── css/style.css
+│   └── js/
+├── android-offline/        # Android 离线壳工程
+├── .github/workflows/      # GitHub Pages 发布
+├── BUILD_INSTRUCTIONS.md   # 构建说明
+├── package.json
+└── vite.config.js
+```
+
+## 本地开发
 
 ```bash
-# 1. Clone project code.
-git clone git@github.com:VickScarlet/lifeRestart.git my-project
-cd my-project
-
-# 2. Installation dependence.
 pnpm install
-
-# 3. Transform XLSX
-pnpm xlsx2json
-
-# 4. Start local dev server.
 pnpm dev
 ```
 
-After the startup is complete, open a browser and visit [http://localhost:5173](http://localhost:5173).
-</details>
+默认开发地址：<http://localhost:5173>
 
-<details>
-<summary><strong>Command Line Version</strong></summary>
-<br />
+## 前端构建
 
 ```bash
-node repl
+pnpm build
 ```
 
-</details>
+输出目录：`dist/`
 
-## Other Version
+## Android APK 构建
 
-<details>
-<summary><strong>Versions</strong></summary>
-<br />
+```bash
+pnpm build
+cd android-offline
+./gradlew assembleDebug
+```
 
-- Cocos Ver: [gameall3d/LifeRestart_Cocos](https://github.com/gameall3d/LifeRestart_Cocos)
+APK 输出：
 
-</details>
+```text
+android-offline/app/build/outputs/apk/debug/app-debug.apk
+```
 
-> More instructions at [documentation](https://liferestart.syaro.io/).
+## GitHub Pages 发布
+
+推送 `main` 后，GitHub Actions 会自动：
+
+1. `pnpm install --frozen-lockfile`
+2. `pnpm build`
+3. 发布 `dist/`
+
+## 现行开发约定
+
+- 只改 `public/` 里的前端源码
+- 不再恢复旧 `src/` / `laya/` / `template/` 链路
+- Android 壳只消费 `dist/`
+- GitHub Pages 只发布 `dist/`
+
+如果要继续加功能，直接在这条主线上做，不再分叉第二套前端。

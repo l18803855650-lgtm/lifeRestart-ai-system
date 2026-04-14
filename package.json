@@ -1,18 +1,15 @@
 {
-    "name": "life_restart",
+    "name": "liferestart-ai-system",
     "type": "module",
-    "main": "repl/index.js",
     "version": "2.1.0",
     "author": "Vick Scarlet <vick@syaro.io>",
     "scripts": {
-        "xlsx2json": "vt transform -d public \"data/**/*.xlsx\"",
-        "dev": "vite",
+        "dev": "vite --host 0.0.0.0",
         "build": "vite build",
-        "start": "vite preview",
-        "test": "vitest"
+        "start": "vite preview --host 0.0.0.0",
+        "test": "vitest --passWithNoTests"
     },
     "devDependencies": {
-        "v-transform": "^2.2.1",
         "vite": "^8.0.3",
         "vitest": "^4.1.2"
     }

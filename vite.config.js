@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
         base: './',
         plugins: [aiApiPlugin(env)],
         build: {
-            outDir: '../template/public',
+            outDir: '../dist',
             emptyOutDir: true,
         },
     };
