@@ -104,6 +104,9 @@ const LOCAL_TEMPLATES = {
 // 聊天终端主类
 // ============================================================
 
+/** 传递给 AI 的最大对话历史条数 */
+const CHAT_HISTORY_LIMIT = 20;
+
 export class ChatTerminal {
     constructor() {
         /** 聊天历史记录 { role: 'user'|'system'|'info', content, timestamp } */
@@ -512,12 +515,48 @@ export class ChatTerminal {
      * 生成普通对话的 AI 回复
      */
     async _generateResponse(text, gameState) {
+        // Build chat history for AI context (role mapping: system→assistant for API compatibility)
+        const chatHistoryForAI = this.messages
+            .slice(-CHAT_HISTORY_LIMIT)
+            .filter(m => m.role === 'user' || m.role === 'system')
+            .map(m => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content,
+            }));
+
+        // Build enriched game state with chat history and memory
+        const enrichedState = {
+            ...gameState,
+            chatHistory: chatHistoryForAI,
+            memorySummary: gameState?.memorySummary || '',
+        };
+
+        // Use aiService.generateSystemReply directly if configured, for better memory context
+        if (this._aiService && this._aiService.isConfigured()) {
+            try {
+                const context = {
+                    system: enrichedState.system,
+                    personality: enrichedState.personality || this.systemPersonality,
+                    properties: enrichedState.properties,
+                    age: enrichedState.age,
+                    chatHistory: chatHistoryForAI,
+                    memory: enrichedState.memorySummary,
+                };
+                const result = await this._aiService.generateSystemReply(context, text);
+                if (result && result.reply) {
+                    return this._processAIResponse(result.reply);
+                }
+            } catch (err) {
+                console.warn('generateSystemReply failed, falling back:', err.message);
+            }
+        }
+
         const prompt = this._enhancePrompt(
             `宿主说："${text}"。请以你的人格特色自然地回应。`,
             this.systemPersonality,
-            gameState
+            enrichedState
         );
-        return this._callAIOrFallback(prompt, 'general', text, gameState);
+        return this._callAIOrFallback(prompt, 'general', text, enrichedState);
     }
 
     // --------------------------------------------------------

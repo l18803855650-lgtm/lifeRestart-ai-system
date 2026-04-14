@@ -58,6 +58,9 @@ const MAX_RETRIES = 3;
 // 重试基础延迟（毫秒）
 const BASE_RETRY_DELAY = 1000;
 
+// 系统回复对话框中保留的最近历史消息条数（仅用于 AI 上下文，不影响聊天终端显示）
+const MAX_CHAT_HISTORY_MESSAGES = 10;
+
 // ============================================================
 // AIService 类
 // ============================================================
@@ -233,6 +236,164 @@ class AIService {
         } catch (err) {
             console.warn('AI 生成任务失败，回退到本地引擎：', err.message);
             return { reply: this._localGenerateTask(context, task), source: 'local' };
+        }
+    }
+
+    /**
+     * AI 生成动态任务（含选项和效果）
+     * @param {Object} context - 游戏上下文
+     * @returns {Promise<{task:Object|null, source:string}>}
+     */
+    async generateDynamicTask(context) {
+        if (!this.isConfigured()) {
+            return { task: null, source: 'local' };
+        }
+        try {
+            const { age, properties, system, talents } = context;
+            const propDesc = this._formatProperties(properties);
+            const systemDesc = this._formatSystemContext(system);
+
+            const systemPrompt = [
+                '你是「人生重开模拟器」的动态任务生成器。',
+                `当前世界体系：${systemDesc}。`,
+                '请为玩家生成一个有趣的互动任务，要贴合年龄和属性。',
+                '严格按以下JSON格式输出，不要输出任何其他内容：',
+                '{"title":"任务标题","description":"任务描述","choices":[{"text":"选项A","result":"选择A的结果","effect":{"CHR":1}},{"text":"选项B","result":"选择B的结果","effect":{"INT":-1}}]}',
+                '属性名只能是：CHR/INT/STR/MNY/SPR，数值为整数（正负均可，绝对值1-3）。',
+                '选项必须2-4个。任务要有趣味性和抉择感。',
+            ].join('\n');
+
+            const userPrompt = [
+                `玩家年龄：${age ?? 0} 岁`,
+                propDesc,
+                talents?.length ? `天赋：${talents.join('、')}` : '',
+                '请生成一个动态任务。',
+            ].filter(Boolean).join('\n');
+
+            const reply = await this.chat(
+                [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                { temperature: 0.95, max_tokens: 500 }
+            );
+
+            const task = this._parseTaskJSON(reply);
+            if (task) {
+                return { task, source: 'ai' };
+            }
+            return { task: null, source: 'ai' };
+        } catch (err) {
+            console.warn('AI 生成动态任务失败：', err.message);
+            return { task: null, source: 'local' };
+        }
+    }
+
+    /**
+     * AI 生成NPC角色遭遇
+     * @param {Object} context - 游戏上下文
+     * @returns {Promise<{npc:Object|null, event:string, source:string}>}
+     */
+    async generateNPCEncounter(context) {
+        if (!this.isConfigured()) {
+            return this._localGenerateNPC(context);
+        }
+        try {
+            const { age, properties, system } = context;
+            const propDesc = this._formatProperties(properties);
+            const systemDesc = this._formatSystemContext(system);
+
+            const systemPrompt = [
+                '你是「人生重开模拟器」的NPC生成器。',
+                `当前世界体系：${systemDesc}。`,
+                '请为玩家生成一次NPC遭遇事件。',
+                '严格按以下JSON格式输出，不要输出任何其他内容：',
+                '{"name":"NPC名字","relation":"关系类型","event":"遭遇描述（50字以内）","attitude":20,"item":null}',
+                '说明：attitude为好感度数值（-100到100的整数），item可以是null或者{"name":"物品名","description":"物品描述","rarity":"common"}（rarity可选common/rare/epic）。',
+                '关系类型可以是：朋友/对手/恩师/恋人/同事/邻居/陌生人等。',
+                'NPC名字要有代入感，遭遇要贴合年龄和世界体系。',
+            ].join('\n');
+
+            const userPrompt = [
+                `玩家年龄：${age ?? 0} 岁`,
+                propDesc,
+                '请生成一次NPC遭遇。',
+            ].filter(Boolean).join('\n');
+
+            const reply = await this.chat(
+                [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                { temperature: 0.95, max_tokens: 300 }
+            );
+
+            const parsed = this._parseJSONFromReply(reply);
+            if (parsed && parsed.name && parsed.event) {
+                return {
+                    npc: {
+                        name: parsed.name,
+                        relation: parsed.relation || '相识',
+                        attitude: typeof parsed.attitude === 'number' ? parsed.attitude : 10,
+                    },
+                    event: parsed.event,
+                    item: parsed.item || null,
+                    source: 'ai',
+                };
+            }
+            return this._localGenerateNPC(context);
+        } catch (err) {
+            console.warn('AI 生成NPC遭遇失败：', err.message);
+            return this._localGenerateNPC(context);
+        }
+    }
+
+    /**
+     * AI 生成随机物品
+     * @param {Object} context - 游戏上下文
+     * @returns {Promise<{item:Object|null, event:string, source:string}>}
+     */
+    async generateRandomItem(context) {
+        if (!this.isConfigured()) {
+            return this._localGenerateItem(context);
+        }
+        try {
+            const { age, properties, system } = context;
+            const propDesc = this._formatProperties(properties);
+            const systemDesc = this._formatSystemContext(system);
+
+            const systemPrompt = [
+                '你是「人生重开模拟器」的物品生成器。',
+                `当前世界体系：${systemDesc}。`,
+                '请为玩家生成一个获得物品的事件。',
+                '严格按以下JSON格式输出，不要输出任何其他内容：',
+                '{"name":"物品名称","description":"物品描述（30字以内）","rarity":"rare","event":"获得物品的事件描述（50字以内）","effect":null}',
+                '说明：rarity可选common/rare/epic/legendary，effect可以是null或者{"CHR":1}格式（属性名只能是CHR/INT/STR/MNY/SPR，数值为整数）。',
+                '物品要贴合年龄和世界体系，有趣且有想象力。',
+            ].join('\n');
+
+            const userPrompt = [
+                `玩家年龄：${age ?? 0} 岁`,
+                propDesc,
+                '请生成一个物品获得事件。',
+            ].filter(Boolean).join('\n');
+
+            const reply = await this.chat(
+                [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                { temperature: 0.95, max_tokens: 250 }
+            );
+
+            const parsed = this._parseJSONFromReply(reply);
+            if (parsed && parsed.name && parsed.event) {
+                return {
+                    item: {
+                        name: parsed.name,
+                        description: parsed.description || '',
+                        rarity: parsed.rarity || 'common',
+                    },
+                    event: parsed.event,
+                    effect: parsed.effect || null,
+                    source: 'ai',
+                };
+            }
+            return this._localGenerateItem(context);
+        } catch (err) {
+            console.warn('AI 生成物品事件失败：', err.message);
+            return this._localGenerateItem(context);
         }
     }
 
@@ -454,7 +615,7 @@ class AIService {
         const propDesc = this._formatProperties(properties);
         const talentDesc = talents?.length ? `天赋：${talents.join('、')}` : '';
         const recentDesc = this._formatRecentEvents(recentEvents);
-        const memoryDesc = memory ? `记忆片段：${memory}` : '';
+        const memoryBlock = this._buildMemoryBlock(context);
         const systemDesc = this._formatSystemContext(system);
 
         const systemPrompt = [
@@ -462,8 +623,9 @@ class AIService {
             `当前体系设定：${systemDesc}。`,
             '请根据玩家当前的年龄、属性和历史经历，生成该年发生的 1 到 3 个事件。',
             '每个事件应以独立一行输出，格式为纯文本描述，生动具体，有叙事感。',
-            '事件需合理反映年龄阶段特征和属性影响，前后连贯。',
-            '如果涉及属性变化，在事件末尾用括号标注，如：（魅力+1）。',
+            '事件需合理反映年龄阶段特征和属性影响，前后连贯，与历史记忆保持一致。',
+            '如果涉及属性变化，在事件末尾用中文括号标注，如：（颜值+1）（智力-2）。',
+            '属性名称：颜值/智力/体质/家境/快乐',
             '严禁输出思考过程、分析过程、推理过程、解释、前言、标题、编号、JSON、Markdown。',
             '直接输出事件正文，一行一个事件。'
         ].join('\n');
@@ -473,7 +635,7 @@ class AIService {
             propDesc,
             talentDesc,
             recentDesc,
-            memoryDesc,
+            memoryBlock,
             '请生成本年度的人生事件。'
         ].filter(Boolean).join('\n');
 
@@ -487,12 +649,13 @@ class AIService {
      * 构建系统人格回复提示词
      */
     _buildSystemReplyPrompt(context, userMessage) {
-        const { system, properties, age, personality } = context;
+        const { system, properties, age, personality, chatHistory } = context;
         const systemDesc = this._formatSystemContext(system);
         const personalityDesc = typeof personality === 'string'
             ? personality
             : (personality?.description || personality?.tone || personality?.name || '睿智而幽默的人生导师');
         const propDesc = this._formatProperties(properties);
+        const memoryBlock = this._buildMemoryBlock(context);
 
         const systemPrompt = [
             `你是「人生重开模拟器」中的系统人格"${personalityDesc}"。`,
@@ -500,21 +663,37 @@ class AIService {
             '你需要以该人格身份回复玩家的消息，语气要符合角色设定。',
             '回复应简洁有趣，可以包含对玩家人生状态的评论、建议或吐槽。',
             '保持角色一致性，不要跳出设定。',
-            '严禁展示思考过程、推理过程、分析过程或任何类似“让我想想/我的分析是”的内容。',
+            '严禁展示思考过程、推理过程、分析过程或任何类似"让我想想/我的分析是"的内容。',
             '直接给出系统的最终回复。'
         ].join('\n');
 
-        const userPrompt = [
+        const messages = [
+            { role: 'system', content: systemPrompt },
+        ];
+
+        const stateLines = [
             `玩家当前年龄：${age ?? 0} 岁`,
             propDesc,
-            `玩家说：「${userMessage}」`,
-            '请以系统人格身份回复。'
+            memoryBlock,
         ].filter(Boolean).join('\n');
+        if (stateLines) {
+            messages.push({ role: 'system', content: stateLines });
+        }
 
-        return [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-        ];
+        if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+            const recentHistory = chatHistory.slice(-MAX_CHAT_HISTORY_MESSAGES);
+            for (const msg of recentHistory) {
+                if (msg.role === 'user') {
+                    messages.push({ role: 'user', content: msg.content });
+                } else if (msg.role === 'system' || msg.role === 'assistant') {
+                    messages.push({ role: 'assistant', content: msg.content });
+                }
+            }
+        }
+
+        messages.push({ role: 'user', content: `宿主说：「${userMessage}」\n请以系统人格身份回复。` });
+
+        return messages;
     }
 
     /**
@@ -656,6 +835,33 @@ class AIService {
         cleaned = cleaned.replace(/^(最终回答|最终回复|答复|回复)[:：]\s*/gim, '');
         cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
         return cleaned.trim();
+    }
+
+    /**
+     * Build a compact memory block for AI prompts
+     */
+    _buildMemoryBlock(context) {
+        const { memory, age } = context;
+        if (!memory) return '';
+
+        if (typeof memory === 'string') {
+            return memory ? `记忆档案：${memory}` : '';
+        }
+
+        if (typeof memory.buildContextSummary === 'function') {
+            const summary = memory.buildContextSummary(age);
+            return summary ? `记忆档案：\n${summary}` : '';
+        }
+
+        return '';
+    }
+
+    /**
+     * Estimate token count (rough: 1 token ≈ 1.5 Chinese chars)
+     */
+    _estimateTokens(text) {
+        if (!text) return 0;
+        return Math.ceil(text.length / 1.5);
     }
 
     _localGenerateEvent(context) {
@@ -1129,6 +1335,156 @@ class AIService {
             '【健康管理】体检报告提示你需要注意身体：\nA. 立即改变生活方式 → 积极但需要毅力\nB. 定期复查 → 关注但不过度紧张\nC. 顺其自然 → 潇洒但有风险',
             '【家庭决策】家人需要你做一个重要决定：\nA. 承担责任 → 家人信赖但压力增大\nB. 共同商议 → 民主但可能意见不合\nC. 请教长辈 → 借鉴经验但可能观念不同'
         ]);
+    }
+
+    // --------------------------------------------------------
+    // JSON 解析辅助
+    // --------------------------------------------------------
+
+    /**
+     * 从 AI 回复中提取 JSON 对象
+     */
+    _parseJSONFromReply(reply) {
+        if (!reply) return null;
+        try {
+            // 先尝试直接解析
+            return JSON.parse(reply.trim());
+        } catch (_) {
+            // 尝试从文本中提取 JSON 块
+            const jsonMatch = reply.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    return JSON.parse(jsonMatch[0]);
+                } catch (_e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 解析 AI 返回的任务 JSON
+     */
+    _parseTaskJSON(reply) {
+        const parsed = this._parseJSONFromReply(reply);
+        if (!parsed || !parsed.description || !Array.isArray(parsed.choices)) return null;
+        // 标准化 choices 中的 effect 属性
+        const validProps = new Set(['CHR', 'INT', 'STR', 'MNY', 'SPR']);
+        for (const choice of parsed.choices) {
+            if (choice.effect && typeof choice.effect === 'object') {
+                const cleaned = {};
+                for (const [k, v] of Object.entries(choice.effect)) {
+                    if (validProps.has(k) && typeof v === 'number') {
+                        cleaned[k] = Math.max(-3, Math.min(3, Math.round(v)));
+                    }
+                }
+                choice.effect = Object.keys(cleaned).length > 0 ? cleaned : { SPR: 1 };
+            } else {
+                choice.effect = { SPR: 1 };
+            }
+            if (!choice.result) choice.result = choice.text;
+        }
+        return parsed;
+    }
+
+    /**
+     * 本地 NPC 遭遇生成（AI 不可用时的兜底）
+     */
+    _localGenerateNPC(context) {
+        const { age = 0 } = context;
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+        const npcPools = {
+            child: [
+                { name: '小明', relation: '同学', event: '你在学校认识了一个新朋友，你们很快成为了好伙伴。', attitude: 20 },
+                { name: '王老师', relation: '恩师', event: '班主任王老师对你格外关注，鼓励你好好学习。', attitude: 30 },
+                { name: '邻居奶奶', relation: '邻居', event: '隔壁的奶奶经常给你带好吃的，你很喜欢她。', attitude: 25 },
+            ],
+            teen: [
+                { name: '陈思涵', relation: '同学', event: '你在社团活动中结识了陈思涵，你们志趣相投。', attitude: 25 },
+                { name: '刘教练', relation: '恩师', event: '体育老师发现了你的潜力，开始特别培养你。', attitude: 20 },
+                { name: '赵小曼', relation: '朋友', event: '你和赵小曼因为一次合作项目成为了好朋友。', attitude: 30 },
+            ],
+            adult: [
+                { name: '张伟', relation: '同事', event: '新来的同事张伟和你分在了同一个项目组。', attitude: 15 },
+                { name: '李经理', relation: '上司', event: '李经理对你的工作能力很认可，开始给你更多机会。', attitude: 20 },
+                { name: '林小雨', relation: '朋友', event: '你在一次聚会上认识了林小雨，聊得很投机。', attitude: 25 },
+                { name: '老王', relation: '邻居', event: '你的新邻居老王是个热心人，经常帮你的忙。', attitude: 15 },
+            ],
+            senior: [
+                { name: '老李', relation: '朋友', event: '公园里认识的老李和你成了棋友，每天约着下棋。', attitude: 25 },
+                { name: '小孙女', relation: '家人', event: '小孙女的到来给你的生活增添了无穷的乐趣。', attitude: 40 },
+                { name: '社区张主任', relation: '朋友', event: '你参加社区活动时认识了热心的张主任。', attitude: 20 },
+            ],
+        };
+
+        let pool;
+        if (age <= 11) pool = npcPools.child;
+        else if (age <= 17) pool = npcPools.teen;
+        else if (age <= 55) pool = npcPools.adult;
+        else pool = npcPools.senior;
+
+        const chosen = pick(pool);
+        return {
+            npc: { name: chosen.name, relation: chosen.relation, attitude: chosen.attitude },
+            event: chosen.event,
+            item: null,
+            source: 'local',
+        };
+    }
+
+    /**
+     * 本地物品生成（AI 不可用时的兜底）
+     */
+    _localGenerateItem(context) {
+        const { age = 0, system } = context;
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const sysName = typeof system === 'string' ? system : (system?.name || '');
+
+        const itemPools = {
+            child: [
+                { name: '幸运弹珠', description: '一颗闪亮的玻璃弹珠', rarity: 'common', event: '你在操场上捡到了一颗漂亮的弹珠，决定留作纪念。' },
+                { name: '故事书', description: '一本精彩的冒险故事', rarity: 'common', event: '爸妈送了你一本故事书，你爱不释手。' },
+                { name: '小金鱼', description: '一条活泼的金鱼', rarity: 'common', event: '你在庙会上赢了一条小金鱼带回了家。' },
+            ],
+            teen: [
+                { name: '日记本', description: '记录青春秘密的精致日记本', rarity: 'common', event: '你开始用日记本记录自己的心情和想法。' },
+                { name: '吉他', description: '一把二手的木吉他', rarity: 'rare', event: '你用攒了很久的零花钱买了一把吉他。' },
+                { name: '友谊手链', description: '好朋友亲手编织的手链', rarity: 'rare', event: '好朋友在你生日时送了你一条手工手链。' },
+            ],
+            adult: [
+                { name: '商务名片夹', description: '高档皮质名片夹', rarity: 'common', event: '你在职场社交中获得了一个精致的名片夹。' },
+                { name: '投资合同', description: '一份有潜力的投资协议', rarity: 'rare', event: '你签下了人生中第一份重要的投资合同。' },
+                { name: '老照片', description: '一张泛黄的全家福', rarity: 'rare', event: '整理旧物时你发现了一张珍贵的全家福。' },
+                { name: '神秘钥匙', description: '不知道能打开什么的古老钥匙', rarity: 'epic', event: '你在老房子的地下室发现了一把神秘的钥匙。' },
+            ],
+            senior: [
+                { name: '传家宝', description: '世代相传的家族信物', rarity: 'epic', event: '长辈将家族传家宝郑重地交到了你手上。' },
+                { name: '老花镜', description: '一副舒适的老花镜', rarity: 'common', event: '你终于配了一副合适的老花镜，看报纸清楚多了。' },
+                { name: '人生相册', description: '精心整理的人生影集', rarity: 'rare', event: '你把一辈子的照片整理成了一本精美的相册。' },
+            ],
+        };
+
+        // 系统专属物品
+        if (sysName.includes('修仙') || sysName.includes('仙')) {
+            const cultivationItems = [
+                { name: '灵石', description: '蕴含灵气的天然矿石', rarity: 'rare', event: '你在山中发现了一块散发微光的灵石。', effect: { STR: 1 } },
+                { name: '古卷残篇', description: '记载功法的古旧竹简', rarity: 'epic', event: '你在藏经阁的角落发现了一卷古老的功法残篇。', effect: { INT: 1 } },
+                { name: '辟谷丹', description: '可以数日不食的仙丹', rarity: 'rare', event: '师兄赠你一枚辟谷丹，以备不时之需。' },
+            ];
+            const chosen = pick(cultivationItems);
+            return { item: { name: chosen.name, description: chosen.description, rarity: chosen.rarity }, event: chosen.event, effect: chosen.effect || null, source: 'local' };
+        }
+
+        let pool;
+        if (age <= 11) pool = itemPools.child;
+        else if (age <= 17) pool = itemPools.teen;
+        else if (age <= 55) pool = itemPools.adult;
+        else pool = itemPools.senior;
+
+        const chosen = pick(pool);
+        return { item: { name: chosen.name, description: chosen.description, rarity: chosen.rarity }, event: chosen.event, effect: null, source: 'local' };
     }
 
     // --------------------------------------------------------
