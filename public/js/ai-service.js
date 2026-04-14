@@ -454,7 +454,7 @@ class AIService {
         const propDesc = this._formatProperties(properties);
         const talentDesc = talents?.length ? `天赋：${talents.join('、')}` : '';
         const recentDesc = this._formatRecentEvents(recentEvents);
-        const memoryDesc = memory ? `记忆片段：${memory}` : '';
+        const memoryBlock = this._buildMemoryBlock(context);
         const systemDesc = this._formatSystemContext(system);
 
         const systemPrompt = [
@@ -462,8 +462,9 @@ class AIService {
             `当前体系设定：${systemDesc}。`,
             '请根据玩家当前的年龄、属性和历史经历，生成该年发生的 1 到 3 个事件。',
             '每个事件应以独立一行输出，格式为纯文本描述，生动具体，有叙事感。',
-            '事件需合理反映年龄阶段特征和属性影响，前后连贯。',
-            '如果涉及属性变化，在事件末尾用括号标注，如：（魅力+1）。',
+            '事件需合理反映年龄阶段特征和属性影响，前后连贯，与历史记忆保持一致。',
+            '如果涉及属性变化，在事件末尾用中文括号标注，如：（颜值+1）（智力-2）。',
+            '属性名称：颜值/智力/体质/家境/快乐',
             '严禁输出思考过程、分析过程、推理过程、解释、前言、标题、编号、JSON、Markdown。',
             '直接输出事件正文，一行一个事件。'
         ].join('\n');
@@ -473,7 +474,7 @@ class AIService {
             propDesc,
             talentDesc,
             recentDesc,
-            memoryDesc,
+            memoryBlock,
             '请生成本年度的人生事件。'
         ].filter(Boolean).join('\n');
 
@@ -487,12 +488,13 @@ class AIService {
      * 构建系统人格回复提示词
      */
     _buildSystemReplyPrompt(context, userMessage) {
-        const { system, properties, age, personality } = context;
+        const { system, properties, age, personality, chatHistory } = context;
         const systemDesc = this._formatSystemContext(system);
         const personalityDesc = typeof personality === 'string'
             ? personality
             : (personality?.description || personality?.tone || personality?.name || '睿智而幽默的人生导师');
         const propDesc = this._formatProperties(properties);
+        const memoryBlock = this._buildMemoryBlock(context);
 
         const systemPrompt = [
             `你是「人生重开模拟器」中的系统人格"${personalityDesc}"。`,
@@ -500,21 +502,37 @@ class AIService {
             '你需要以该人格身份回复玩家的消息，语气要符合角色设定。',
             '回复应简洁有趣，可以包含对玩家人生状态的评论、建议或吐槽。',
             '保持角色一致性，不要跳出设定。',
-            '严禁展示思考过程、推理过程、分析过程或任何类似“让我想想/我的分析是”的内容。',
+            '严禁展示思考过程、推理过程、分析过程或任何类似"让我想想/我的分析是"的内容。',
             '直接给出系统的最终回复。'
         ].join('\n');
 
-        const userPrompt = [
+        const messages = [
+            { role: 'system', content: systemPrompt },
+        ];
+
+        const stateLines = [
             `玩家当前年龄：${age ?? 0} 岁`,
             propDesc,
-            `玩家说：「${userMessage}」`,
-            '请以系统人格身份回复。'
+            memoryBlock,
         ].filter(Boolean).join('\n');
+        if (stateLines) {
+            messages.push({ role: 'system', content: stateLines });
+        }
 
-        return [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-        ];
+        if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+            const recentHistory = chatHistory.slice(-10);
+            for (const msg of recentHistory) {
+                if (msg.role === 'user') {
+                    messages.push({ role: 'user', content: msg.content });
+                } else if (msg.role === 'system' || msg.role === 'assistant') {
+                    messages.push({ role: 'assistant', content: msg.content });
+                }
+            }
+        }
+
+        messages.push({ role: 'user', content: `宿主说：「${userMessage}」\n请以系统人格身份回复。` });
+
+        return messages;
     }
 
     /**
@@ -656,6 +674,33 @@ class AIService {
         cleaned = cleaned.replace(/^(最终回答|最终回复|答复|回复)[:：]\s*/gim, '');
         cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
         return cleaned.trim();
+    }
+
+    /**
+     * Build a compact memory block for AI prompts
+     */
+    _buildMemoryBlock(context) {
+        const { memory, age } = context;
+        if (!memory) return '';
+
+        if (typeof memory === 'string') {
+            return memory ? `记忆档案：${memory}` : '';
+        }
+
+        if (typeof memory.buildContextSummary === 'function') {
+            const summary = memory.buildContextSummary(age);
+            return summary ? `记忆档案：\n${summary}` : '';
+        }
+
+        return '';
+    }
+
+    /**
+     * Estimate token count (rough: 1 token ≈ 1.5 Chinese chars)
+     */
+    _estimateTokens(text) {
+        if (!text) return 0;
+        return Math.ceil(text.length / 1.5);
     }
 
     _localGenerateEvent(context) {

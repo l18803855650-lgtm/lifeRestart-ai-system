@@ -124,41 +124,57 @@ export class MemoryEngine {
     }
 
     /**
-     * 更新已有关系
+     * 更新已有关系（支持两种调用签名）
      * @param {string} name - NPC名称
-     * @param {object} updates - 更新字段 { relation?, attitude?, eventDescription? }
+     * @param {number|object} deltaOrUpdates - 好感度变化量（数字）或更新字段对象
+     * @param {string} [eventDesc] - 事件描述（当 deltaOrUpdates 为数字时使用）
      */
-    updateRelationship(name, updates) {
-        if (!this.relationships[name]) return;
-
+    updateRelationship(name, deltaOrUpdates, eventDesc) {
+        // Auto-create if not exists
+        if (!this.relationships[name]) {
+            this.relationships[name] = {
+                relation: '相识',
+                attitude: 0,
+                firstMet: this.currentAge,
+                events: [],
+            };
+        }
         const rel = this.relationships[name];
 
-        if (updates.relation !== undefined) {
-            rel.relation = updates.relation;
-        }
-        if (updates.attitude !== undefined) {
-            rel.attitude = Math.min(100, Math.max(-100, updates.attitude));
-        }
-        if (updates.eventDescription) {
-            rel.events.push({
-                description: updates.eventDescription,
-                age: this.currentAge,
-            });
+        if (typeof deltaOrUpdates === 'number') {
+            rel.attitude = Math.min(100, Math.max(-100, rel.attitude + deltaOrUpdates));
+            if (eventDesc && typeof eventDesc === 'string') {
+                rel.events.push({ description: eventDesc, age: this.currentAge });
+            }
+        } else if (deltaOrUpdates && typeof deltaOrUpdates === 'object') {
+            if (deltaOrUpdates.relation !== undefined) rel.relation = deltaOrUpdates.relation;
+            if (deltaOrUpdates.attitude !== undefined) rel.attitude = Math.min(100, Math.max(-100, deltaOrUpdates.attitude));
+            if (deltaOrUpdates.eventDescription) {
+                rel.events.push({ description: deltaOrUpdates.eventDescription, age: this.currentAge });
+            }
         }
     }
 
     /**
-     * 记录获得物品
+     * 记录获得物品（支持两种调用签名）
      * @param {string} name - 物品名称
      * @param {string} description - 物品描述
-     * @param {number} age - 获得年龄
-     * @param {string} source - 来源
+     * @param {string|number} rarityOrAge - 稀有度字符串或获得年龄数字
+     * @param {string} [source] - 来源
      */
-    addItem(name, description, age, source) {
+    addItem(name, description, rarityOrAge, source) {
         const existing = this.inventory.find(item => item.name === name);
         if (existing) return existing;
 
-        const item = { name, description, acquiredAge: age, source };
+        let rarity = 'common';
+        let acquiredAge = this.currentAge;
+        if (typeof rarityOrAge === 'string') {
+            rarity = rarityOrAge;
+        } else if (typeof rarityOrAge === 'number') {
+            acquiredAge = rarityOrAge;
+        }
+
+        const item = { name, description, acquiredAge, rarity, source: source || '' };
         this.inventory.push(item);
         return item;
     }
@@ -809,6 +825,101 @@ export class MemoryEngine {
             m => `  ${m.age}岁：${m.description}`
         );
         return '【人生里程碑】\n' + lines.join('\n');
+    }
+
+    /**
+     * Build a compact context summary for AI prompts
+     * @param {number} currentAge
+     * @returns {string}
+     */
+    buildContextSummary(currentAge) {
+        const age = currentAge !== undefined ? currentAge : this.currentAge;
+        const parts = [];
+
+        const relNames = Object.keys(this.relationships);
+        if (relNames.length > 0) {
+            const relStr = relNames.slice(0, 8).map(n => {
+                const r = this.relationships[n];
+                return `${n}(${r.relation},好感${r.attitude > 0 ? '+' : ''}${r.attitude})`;
+            }).join('、');
+            parts.push(`关系：${relStr}`);
+        }
+
+        if (this.inventory.length > 0) {
+            const invStr = this.inventory.slice(0, 6).map(i => i.name).join('、');
+            parts.push(`物品：${invStr}`);
+        }
+
+        if (this.milestones.length > 0) {
+            const milStr = this.milestones.slice(-5).map(m => `${m.age}岁·${m.description}`).join('；');
+            parts.push(`里程碑：${milStr}`);
+        }
+
+        const recentCutoff = age - 5;
+        const recentEvents = this.memories
+            .filter(m => m.age >= recentCutoff)
+            .slice(-8)
+            .map(m => `${m.age}岁·${m.event}`);
+        if (recentEvents.length > 0) {
+            parts.push(`近期：${recentEvents.join('；')}`);
+        }
+
+        if (this.summaries.length > 0) {
+            const oldSummaries = this.summaries
+                .filter(s => s.periodEnd <= recentCutoff)
+                .map(s => `[${s.periodStart}-${s.periodEnd}岁]${s.eventCount}事`);
+            if (oldSummaries.length > 0) {
+                parts.push(`历史摘要：${oldSummaries.join('；')}`);
+            }
+        }
+
+        return parts.join('\n');
+    }
+
+    /**
+     * Compress memories older than keepYears into decade summaries
+     * @param {number} currentAge
+     * @param {number} keepYears - keep this many recent years verbatim (default 5)
+     */
+    compressOldMemories(currentAge, keepYears = 5) {
+        const cutoffAge = currentAge - keepYears;
+        if (cutoffAge <= 0) return;
+
+        const oldMemories = this.memories.filter(m => m.age < cutoffAge);
+        if (oldMemories.length < 10) return;
+
+        const decades = {};
+        for (const mem of oldMemories) {
+            const decade = Math.floor(mem.age / 10) * 10;
+            if (!decades[decade]) decades[decade] = [];
+            decades[decade].push(mem);
+        }
+
+        for (const [decadeStart, events] of Object.entries(decades)) {
+            const start = Number(decadeStart);
+            const end = start + 10;
+            const alreadySummarized = this.summaries.some(
+                s => s.periodStart === start && s.periodEnd === end
+            );
+            if (alreadySummarized) continue;
+
+            const topEvents = events
+                .sort((a, b) => b.importance - a.importance)
+                .slice(0, 5)
+                .map(e => `${e.age}岁·${e.event}`);
+
+            const summaryText = `【${start}-${end - 1}岁摘要】${topEvents.join('；')}`;
+            this.summaries.push({
+                periodStart: start,
+                periodEnd: end,
+                text: summaryText,
+                eventCount: events.length,
+                createdAt: Date.now(),
+            });
+        }
+
+        const memoriesSet = new Set(this.memories.filter(m => m.age < cutoffAge && m.importance < 0.7).map(m => m.id));
+        this.memories = this.memories.filter(m => !memoriesSet.has(m.id));
     }
 }
 

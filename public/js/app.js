@@ -932,14 +932,20 @@ class App {
             taskSummary.innerHTML = task
                 ? `<strong>${_escapeHtml(task.title || '系统任务')}</strong><span>${_escapeHtml(task.description || '')}</span>`
                 : '暂无进行中的任务';
+            taskSummary.style.cursor = task ? 'pointer' : 'default';
+            taskSummary.onclick = task ? () => this._showWorldModal('task', task, world) : null;
         }
 
         if (inventorySummary) {
             const items = world.inventory || [];
             if (!items.length) {
                 inventorySummary.textContent = '尚未获得关键物品';
+                inventorySummary.style.cursor = 'default';
+                inventorySummary.onclick = null;
             } else {
                 inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 6).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
+                inventorySummary.style.cursor = 'pointer';
+                inventorySummary.onclick = () => this._showWorldModal('inventory', null, world);
             }
         }
 
@@ -947,10 +953,99 @@ class App {
             const relations = world.relationships || [];
             if (!relations.length) {
                 relationshipSummary.textContent = '你的人生故事还没有重要人物登场';
+                relationshipSummary.style.cursor = 'default';
+                relationshipSummary.onclick = null;
             } else {
                 relationshipSummary.innerHTML = `<div class="info-list">${relations.map(rel => `<div class="info-list-item"><strong>${_escapeHtml(rel.name)}</strong><span>好感 ${_escapeHtml(String(rel.attitude ?? 0))}</span></div>`).join('')}</div>`;
+                relationshipSummary.style.cursor = 'pointer';
+                relationshipSummary.onclick = () => this._showWorldModal('relationships', null, world);
             }
         }
+    }
+
+    /** Show a detail modal for world panels */
+    _showWorldModal(type, data, world) {
+        let modal = document.getElementById('world-detail-modal');
+        if (!modal) {
+            modal = _createElement('div', 'modal-overlay');
+            modal.id = 'world-detail-modal';
+            document.body.appendChild(modal);
+        }
+
+        let title = '';
+        let contentHtml = '';
+
+        if (type === 'task') {
+            title = '📋 当前任务';
+            if (data) {
+                contentHtml = `
+                    <h3>${_escapeHtml(data.title || '系统任务')}</h3>
+                    <p class="modal-desc">${_escapeHtml(data.description || '')}</p>
+                    ${data.choices && data.choices.length ? `
+                        <div class="modal-choices">
+                            <h4>可用选项</h4>
+                            ${data.choices.map(c => `<div class="modal-choice-item">• ${_escapeHtml(c.text)}</div>`).join('')}
+                        </div>
+                    ` : ''}
+                `;
+            } else {
+                contentHtml = '<p>当前没有进行中的任务。</p>';
+            }
+        } else if (type === 'inventory') {
+            title = '🎒 物品背包';
+            const items = world.inventory || [];
+            if (!items.length) {
+                contentHtml = '<p>背包空空如也。</p>';
+            } else {
+                contentHtml = `<div class="modal-item-grid">${items.map(item => `
+                    <div class="modal-item-card rarity-${_escapeHtml(item.rarity || 'common')}">
+                        <div class="modal-item-name">${_escapeHtml(item.name)}</div>
+                        <div class="modal-item-desc">${_escapeHtml(item.description || '')}</div>
+                        <div class="modal-item-meta">${item.rarity ? `稀有度: ${_escapeHtml(item.rarity)}` : ''} ${item.acquiredAge ? `· ${item.acquiredAge}岁获得` : ''}</div>
+                    </div>
+                `).join('')}</div>`;
+            }
+        } else if (type === 'relationships') {
+            title = '👥 人际关系';
+            const relations = world.relationships || [];
+            if (!relations.length) {
+                contentHtml = '<p>还没有重要的人际关系。</p>';
+            } else {
+                contentHtml = `<div class="modal-rel-list">${relations.map(rel => {
+                    const attitude = rel.attitude ?? 0;
+                    const pct = Math.min(100, Math.max(0, (attitude + 100) / 2));
+                    const color = attitude >= 50 ? '#22c55e' : attitude >= 0 ? '#4facfe' : '#ef4444';
+                    return `
+                        <div class="modal-rel-item">
+                            <div class="modal-rel-header">
+                                <strong>${_escapeHtml(rel.name)}</strong>
+                                <span class="modal-rel-type">${_escapeHtml(rel.relation || '相识')}</span>
+                            </div>
+                            <div class="modal-rel-bar-wrap">
+                                <div class="modal-rel-bar" style="width:${pct}%;background:${color}"></div>
+                            </div>
+                            <div class="modal-rel-attitude" style="color:${color}">好感度: ${attitude > 0 ? '+' : ''}${attitude}</div>
+                            ${rel.events && rel.events.length ? `<div class="modal-rel-events">${rel.events.slice(-2).map(e => `<small>• ${_escapeHtml(e.description || '')}</small>`).join('')}</div>` : ''}
+                        </div>
+                    `;
+                }).join('')}</div>`;
+            }
+        }
+
+        modal.innerHTML = `
+            <div class="modal-content world-detail-modal glass-card">
+                <div class="modal-header">
+                    <h2>${title}</h2>
+                    <button class="modal-close-btn" id="world-modal-close">✕</button>
+                </div>
+                <div class="modal-body">${contentHtml}</div>
+            </div>
+        `;
+
+        modal.style.display = 'flex';
+
+        modal.querySelector('#world-modal-close').onclick = () => { modal.style.display = 'none'; };
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
     }
 
     _appendYearRecord(result, options = {}) {
@@ -1123,11 +1218,26 @@ class App {
         if (aiService.isConfigured && aiService.isConfigured()) {
             chatTerminal.setAIService(aiService);
         }
-        chatTerminal.setGameStateProvider(() => ({
-            age: gameEngine.getCurrentAge(),
-            properties: gameEngine.getProperties(),
-            alive: gameEngine.isAlive(),
-        }));
+        chatTerminal.setGameStateProvider(() => {
+            const activeSystem = systemManager.getActiveSystem();
+            return {
+                age: gameEngine.getCurrentAge(),
+                properties: gameEngine.getProperties(),
+                alive: gameEngine.isAlive(),
+                system: activeSystem,
+                systemName: activeSystem?.name,
+                personality: activeSystem ? {
+                    name: activeSystem.name,
+                    tone: activeSystem.tone || 'cheerful',
+                    description: activeSystem.personality || activeSystem.description,
+                    systemPrompt: activeSystem.systemPrompt,
+                } : null,
+                talents: gameEngine.getSelectedTalents(),
+                memories: memoryEngine.getRecentEvents(10),
+                memorySummary: memoryEngine.buildContextSummary ? memoryEngine.buildContextSummary(gameEngine.getCurrentAge()) : '',
+                world: gameEngine.getWorldPanels(),
+            };
+        });
 
         // 渲染已有消息
         if (msgContainer) {

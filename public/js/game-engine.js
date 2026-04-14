@@ -145,6 +145,11 @@ const EVENTS_BABY = [
     { text: '你把碗里的粥扣在了头上，还冲着妈妈笑。', importance: 1 },
     { text: '你在学步车里疯狂冲刺，吓得家里的猫躲到了柜子顶上。', importance: 1 },
     { text: '深夜你哭闹不止，全家轮流抱你到天亮。', importance: 1 },
+    { text: '你在睡眠中露出了神秘的微笑，家人们猜了好久你梦到了什么。', importance: 1 },
+    { text: '你第一次吃到固体食物，表情精彩极了，家人笑得直不起腰。', importance: 1 },
+    { text: '你突然发出了一串咿咿呀呀的声音，大家都说你在讲外星语。', importance: 1 },
+    { text: '你对着窗外的阳光呆呆地看了很久，眼神里充满了对世界的好奇。', importance: 1 },
+    { text: '你学会了拍手，立刻成了家里最受欢迎的表演者。', importance: 1 },
 ];
 
 /**
@@ -159,6 +164,11 @@ const EVENTS_KINDERGARTEN = [
     { text: '你学会了骑三轮车，骄傲得像开了一辆法拉利。', importance: 1 },
     { text: '你问妈妈"我是从哪里来的"，妈妈支支吾吾半天。', importance: 1 },
     { text: '你把邻居家的花全拔了，说是要送给妈妈当礼物。', importance: 1 },
+    { text: '你第一次独立穿好了鞋，为此得意了整整一天。', importance: 1 },
+    { text: '你在幼儿园午睡时翻来覆去睡不着，偷偷观察其他睡着的小朋友。', importance: 1 },
+    { text: '你开始问"为什么天是蓝的"，妈妈回答不上来，最后求助了百度。', importance: 1 },
+    { text: '你跟着爸爸学会了一首儿歌，在亲戚面前大声演唱，掌声雷动。', importance: 1 },
+    { text: '你在沙堆里修建了一座"城堡"，坚持不让任何人破坏它。', importance: 1 },
 ];
 
 /**
@@ -175,6 +185,11 @@ const EVENTS_PRIMARY = [
     { text: '你养了一只蚕宝宝，每天小心翼翼地喂桑叶。', importance: 1 },
     { text: '你在课堂上偷看漫画被老师没收了，心疼了好几天。', importance: 1 },
     { text: '你学会了游泳，在水里像一条欢快的小鱼。', importance: 1, condition: { STR: 4 } },
+    { text: '你在图书馆借了一本科幻小说，彻夜阅读，第二天上课精神不振。', importance: 1 },
+    { text: '你参加了课外兴趣班，发现自己在这方面颇有天赋。', importance: 1 },
+    { text: '你帮助一个迷路的小同学找到了家，受到老师的表扬。', importance: 2 },
+    { text: '你第一次独自骑自行车上学，感觉自己无比自由。', importance: 1 },
+    { text: '你在作文比赛中获奖，文章被贴在学校公告栏。', importance: 2, condition: { INT: 5 } },
 ];
 
 /**
@@ -191,6 +206,11 @@ const EVENTS_MIDDLE = [
     { text: '你在黑板报比赛中为班级赢得了一等奖。', importance: 1 },
     { text: '你和父母发生了一次激烈的争吵，感受到了成长的阵痛。', importance: 2 },
     { text: '你在期末考试中进步了二十名，自信心大增。', importance: 2, condition: { INT: 5 } },
+    { text: '你开始写日记，把所有不能说出口的秘密都藏在里面。', importance: 1 },
+    { text: '你在班级辩论赛中意外发挥出色，被同学们刮目相看。', importance: 2, condition: { INT: 5 } },
+    { text: '你第一次一个人坐地铁去了很远的地方，感受到了独立的滋味。', importance: 1 },
+    { text: '你和好朋友约定好，无论以后去哪里都要保持联系。', importance: 2 },
+    { text: '你开始关注社会新闻，对世界有了新的认识和思考。', importance: 1 },
 ];
 
 /**
@@ -207,6 +227,11 @@ const EVENTS_HIGH = [
     { text: '你在一次义工活动中，感受到了帮助他人的温暖。', importance: 1, condition: { SPR: 5 } },
     { text: '你因为偏科严重，咬牙报了补习班恶补。', importance: 1 },
     { text: '你在学校文艺汇演中表演了一个节目，掌声雷动。', importance: 1, condition: { CHR: 6 } },
+    { text: '你在一次志愿活动中，亲手帮助了一个需要帮助的人，内心久久不能平静。', importance: 2 },
+    { text: '你的一篇作文被发表在校刊上，读者反响热烈。', importance: 2, condition: { INT: 6 } },
+    { text: '你第一次独立规划了一次小旅行，虽然只是郊区，但充满了成就感。', importance: 1 },
+    { text: '你在高中选课时面临艰难抉择，最终遵从了内心的选择。', importance: 2 },
+    { text: '你参加了一次模拟联合国，结识了来自各地的优秀同龄人。', importance: 1, condition: { INT: 6, CHR: 5 } },
 ];
 
 /**
@@ -223,6 +248,11 @@ const EVENTS_COLLEGE = [
     { text: '你通宵打游戏挂了两门课，被辅导员约谈了。', importance: 1, condition: { INT: [0, 4] } },
     { text: '你利用暑假去支教，在山区度过了难忘的一个月。', importance: 2, condition: { SPR: 5 } },
     { text: '你的毕业论文被评为优秀，导师邀请你继续深造。', importance: 2, condition: { INT: 8 } },
+    { text: '你第一次用自己打工赚来的钱请朋友吃饭，感觉特别有意义。', importance: 2 },
+    { text: '你参加了一场线下见面会，见到了网络上崇拜已久的人。', importance: 1 },
+    { text: '你在宿舍里组建了一个小乐队，虽然水平一般，但大家玩得很开心。', importance: 1 },
+    { text: '你以优异的成绩通过了一门全英文课程的考试，信心大增。', importance: 2, condition: { INT: 6 } },
+    { text: '你在一次偶然的机会认识了一个改变你职业规划的导师。', importance: 3, condition: { INT: 5 } },
 ];
 
 /**
@@ -239,6 +269,11 @@ const EVENTS_YOUNG_ADULT = [
     { text: '你在周末学了一门新技能，给生活增添了不少乐趣。', importance: 1 },
     { text: '你父母开始催婚，每次回家都要经历"灵魂拷问"。', importance: 1 },
     { text: '你独自去旅行了一趟，在陌生的城市里找到了内心的平静。', importance: 1, condition: { SPR: 4 } },
+    { text: '你的作品/项目在行业内获得了小范围认可，开始有人主动联系你。', importance: 2, condition: { INT: 6 } },
+    { text: '你独自处理了一次家庭危机，父母感叹你真的长大了。', importance: 2 },
+    { text: '你开始有意识地经营自己的健康，定期运动，戒掉了一个不好的习惯。', importance: 1 },
+    { text: '你在一次重要谈判中据理力争，最终争取到了满意的结果。', importance: 2, condition: { INT: 5, CHR: 5 } },
+    { text: '你接受了一个离家很远的工作机会，开始了新的人生阶段。', importance: 3 },
 ];
 
 /**
@@ -255,6 +290,11 @@ const EVENTS_MIDDLE_AGE = [
     { text: '你在工作中做出了一个关键决策，为公司挽回了巨大损失。', importance: 2, condition: { INT: 8 } },
     { text: '你开始学习投资理财，为未来做打算。', importance: 1 },
     { text: '你经历了中年危机，开始思考人生的意义。', importance: 2 },
+    { text: '你的孩子第一次叫"爸爸/妈妈"，那一刻你热泪盈眶。', importance: 3 },
+    { text: '你在行业内建立了自己的口碑，开始被同行们主动请教。', importance: 2, condition: { INT: 7 } },
+    { text: '你偶然翻出了年轻时的照片，感慨岁月流逝，又坦然接受了改变。', importance: 1 },
+    { text: '你参加了一次同学聚会，意识到人生的选择让大家走上了截然不同的路。', importance: 1 },
+    { text: '你帮助一个年轻人度过了困境，他说你是他人生中的重要引路人。', importance: 2, condition: { SPR: 6 } },
 ];
 
 /**
@@ -271,6 +311,11 @@ const EVENTS_SENIOR = [
     { text: '你参加了同学聚会，大家都变了模样，只有笑声还是从前的味道。', importance: 1 },
     { text: '你开始写回忆录，记录这些年的酸甜苦辣。', importance: 1, condition: { INT: 6 } },
     { text: '你和老伴一起去了年轻时没来得及去的地方。', importance: 2 },
+    { text: '你开始学习一项年轻时没有时间追求的爱好，发现自己还不晚。', importance: 1 },
+    { text: '你把多年积累的经验整理成文章，在网上收获了大量共鸣。', importance: 2, condition: { INT: 7 } },
+    { text: '你和老伴一起重温了当年的初恋地点，心中百感交集。', importance: 2 },
+    { text: '你在社区组织了一次公益活动，影响了身边很多人。', importance: 2, condition: { CHR: 5, SPR: 5 } },
+    { text: '你系统地回顾了自己的一生，给孩子们写了一封长信，讲述你的人生感悟。', importance: 2 },
 ];
 
 /**
@@ -287,6 +332,11 @@ const EVENTS_OLD = [
     { text: '你经历了一次住院，家人寸步不离地陪在身边。', importance: 2, condition: { STR: [0, 4] } },
     { text: '你收到了一封来自远方的信，是年轻时帮助过的人的感谢。', importance: 2 },
     { text: '你看着窗外的夕阳，觉得这辈子虽有遗憾，但也很精彩。', importance: 2 },
+    { text: '你重新开始了一项年轻时放弃的兴趣，找到了意想不到的乐趣。', importance: 1 },
+    { text: '你的老友来探望你，两人回忆往事，笑声传出了很远。', importance: 2 },
+    { text: '你接受了一家媒体的采访，讲述了你漫长而丰富的人生故事。', importance: 2, condition: { INT: 6 } },
+    { text: '你的孙辈问起你年轻时的事，你滔滔不绝地说了整整一下午。', importance: 2 },
+    { text: '你在某个普通的早晨突然明白了一直困扰你的一个人生问题。', importance: 2 },
 ];
 
 /**
@@ -301,6 +351,11 @@ const EVENTS_ELDER = [
     { text: '你收到了政府颁发的"长寿之星"荣誉证书。', importance: 2 },
     { text: '你和老伙计在棋盘上再下了一局，胜负已不重要。', importance: 1 },
     { text: '你平静地度过了又一个春秋，感恩每一天的阳光。', importance: 1 },
+    { text: '你在梦中与老友相遇，醒来时脸上带着微笑。', importance: 1 },
+    { text: '你用颤抖的手写下了对这个世界的祝福，交给了最小的曾孙。', importance: 2 },
+    { text: '你在晚年决定学习一门新技能，家人们又感动又好笑。', importance: 1 },
+    { text: '你参加了一个老年舞蹈队，成为其中最受欢迎的成员。', importance: 1 },
+    { text: '你平静地整理好了自己的遗物，心中没有遗憾，只有满足。', importance: 2 },
 ];
 
 /**
@@ -408,6 +463,10 @@ const DEATH_REASONS = {
     despair: '你的内心已经无法承受生活的重压，灵魂在沉默中慢慢熄灭。',
     oldAge:  '你安详地离开了这个世界，走完了漫长而充实的一生。',
     random:  '命运无常，一场突如其来的意外带走了你。',
+    illness: '你因一场严重的疾病与世长辞，留下了无数未竟的心愿。',
+    accident: '一场意外夺走了你的生命，来得猝不及防。',
+    peaceful: '你在熟悉的家中安详地离开，脸上挂着满足的微笑。',
+    heartbreak: '你的内心在悲痛中慢慢停止了跳动。',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -661,6 +720,9 @@ export class GameEngine {
 
         /** @type {number} 上次出现关键人生抉择的年龄 */
         this._lastDecisionAge = -10;
+
+        /** @type {Set<string>} 已解锁的成就 ID */
+        this._achievements = new Set();
     }
 
     // ─────────────────────────────────────────────────
@@ -687,6 +749,7 @@ export class GameEngine {
         this._lastTaskAge = -10;
         this._storyFlags = new Set();
         this._lastDecisionAge = -10;
+        this._achievements = new Set();
 
         // 重置记忆引擎
         try {
@@ -1000,6 +1063,10 @@ export class GameEngine {
         const yearlyEvents = await this._generateYearlyEvents(age);
         for (const evt of yearlyEvents) {
             events.push(evt);
+            // Parse and apply AI stat changes from event text
+            if (evt.source === 'ai' && evt.text) {
+                this._applyAIStatChanges(evt.text, propertyChanges);
+            }
             // 记录到记忆引擎
             try {
                 memoryEngine.addEvent(age, evt.text, evt.importance || 1);
@@ -1077,6 +1144,19 @@ export class GameEngine {
             // 记录死亡事件
             try {
                 memoryEngine.addMilestone(age, `人生终结：${deathCheck.reason}`, 5);
+            } catch (e) { /* 静默处理 */ }
+        }
+
+        // ── 11. 成就检测 ──
+        const newAchievements = this._checkAchievements(age);
+        for (const ach of newAchievements) {
+            events.push({
+                type: 'achievement',
+                text: `🏆【成就解锁】${ach.title}：${ach.desc}`,
+                importance: 2,
+            });
+            try {
+                memoryEngine.addMilestone(age, `成就：${ach.title}`, 0.7);
             } catch (e) { /* 静默处理 */ }
         }
 
@@ -1221,6 +1301,7 @@ export class GameEngine {
             deathReason: this._deathReason,
             system: this._system ? { id: this._system.id, name: this._system.name } : null,
             naturalLifespan: this._naturalLifespan,
+            achievements: Array.from(this._achievements),
         };
     }
 
@@ -1257,6 +1338,7 @@ export class GameEngine {
             storyFlags: Array.from(this._storyFlags),
             lastDecisionAge: this._lastDecisionAge,
             memory: memoryEngine.exportData(),
+            achievements: Array.from(this._achievements),
         };
     }
 
@@ -1285,6 +1367,7 @@ export class GameEngine {
         this._lastTaskAge = typeof data.lastTaskAge === 'number' ? data.lastTaskAge : -10;
         this._storyFlags = new Set(Array.isArray(data.storyFlags) ? data.storyFlags : []);
         this._lastDecisionAge = typeof data.lastDecisionAge === 'number' ? data.lastDecisionAge : -10;
+        this._achievements = new Set(Array.isArray(data.achievements) ? data.achievements : []);
 
         if (data.memory) {
             try {
@@ -1453,6 +1536,43 @@ export class GameEngine {
         if (!effectMap) return;
         for (const [key, delta] of Object.entries(effectMap)) {
             this._applyPropertyChange(key, delta, changeRecord);
+        }
+    }
+
+    /**
+     * Parse and apply stat changes from AI event text
+     * Supports format: （颜值+1）（智力-2）（体质+3）（家境-1）（快乐+2）
+     */
+    _applyAIStatChanges(text, propertyChanges) {
+        if (!text) return;
+
+        const propNameMap = {
+            '颜值': 'CHR', '魅力': 'CHR', '外貌': 'CHR',
+            '智力': 'INT', '智慧': 'INT',
+            '体质': 'STR', '体力': 'STR', '健康': 'STR',
+            '家境': 'MNY', '财富': 'MNY', '金钱': 'MNY',
+            '快乐': 'SPR', '心情': 'SPR', '幸福': 'SPR',
+        };
+
+        const pattern = /[（(]([^）)]+)[+＋](\d+)[）)]/g;
+        const negPattern = /[（(]([^）)]+)[-－](\d+)[）)]/g;
+
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const propName = match[1].trim();
+            const delta = parseInt(match[2], 10);
+            const key = propNameMap[propName];
+            if (key) {
+                this._applyPropertyChange(key, delta, propertyChanges);
+            }
+        }
+        while ((match = negPattern.exec(text)) !== null) {
+            const propName = match[1].trim();
+            const delta = -parseInt(match[2], 10);
+            const key = propNameMap[propName];
+            if (key) {
+                this._applyPropertyChange(key, delta, propertyChanges);
+            }
         }
     }
 
@@ -1769,6 +1889,7 @@ export class GameEngine {
                         age: y.age,
                         events: y.events.map(e => e.text),
                     })),
+                    memory: memoryEngine,
                 };
 
                 const result = await this._aiService.generateYearlyEvent(context);
@@ -2019,8 +2140,47 @@ export class GameEngine {
     }
 
     /**
-     * 生成属性随机波动
+     * Check and unlock life achievements
+     * @param {number} age
+     * @returns {Array} newly unlocked achievements
      */
+    _checkAchievements(age) {
+        const props = this.getProperties();
+        const newAchievements = [];
+
+        const check = (id, condition, title, desc) => {
+            if (!this._achievements.has(id) && condition) {
+                this._achievements.add(id);
+                newAchievements.push({ id, title, desc });
+            }
+        };
+
+        // Age milestones
+        check('age_18', age === 18, '成年礼', '迈入18岁的门槛');
+        check('age_30', age === 30, '而立之年', '年届三十，立业有成');
+        check('age_50', age === 50, '知天命', '五十岁，看透了许多');
+        check('age_70', age === 70, '古稀之年', '活到七十，难能可贵');
+        check('age_100', age === 100, '百岁人瑞', '世纪老人，传奇一生');
+
+        // Stat achievements
+        check('chr_max', props.CHR >= 10, '天生丽质', '颜值达到满分');
+        check('int_max', props.INT >= 10, '绝顶聪明', '智力达到满分');
+        check('str_max', props.STR >= 10, '铁骨铜皮', '体质达到满分');
+        check('mny_max', props.MNY >= 10, '富可敌国', '家境达到满分');
+        check('spr_max', props.SPR >= 10, '乐天派', '快乐达到满分');
+        check('all_high', Object.values(props).every(v => v >= 7), '全面发展', '所有属性均达到7以上');
+        check('balanced', Math.max(...Object.values(props)) - Math.min(...Object.values(props)) <= 2, '均衡人生', '各属性差距不超过2');
+
+        // Story milestones
+        check('first_choice', this._lastDecisionAge > 0, '人生抉择', '完成了第一次重要抉择');
+        check('route_startup', this._storyFlags.has('route:startup'), '创业者', '选择了创业路线');
+        check('route_study', this._storyFlags.has('route:study'), '学霸', '选择了苦读路线');
+        check('cultivation_breakthrough', this._storyFlags.has('cultivation:breakthrough'), '修炼突破', '成功破境');
+
+        return newAchievements;
+    }
+
+
     _generatePropertyFluctuation(age) {
         // 波动概率随年龄略有变化
         const chance = age < 18 ? 0.15 : (age < 50 ? 0.2 : 0.25);

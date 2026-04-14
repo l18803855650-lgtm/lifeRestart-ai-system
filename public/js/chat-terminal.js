@@ -512,12 +512,45 @@ export class ChatTerminal {
      * 生成普通对话的 AI 回复
      */
     async _generateResponse(text, gameState) {
+        // Build enriched game state with chat history and memory
+        const enrichedState = {
+            ...gameState,
+            chatHistory: this.messages.slice(-20).map(m => ({
+                role: m.role === 'user' ? 'user' : 'system',
+                content: m.content,
+            })),
+            memorySummary: gameState?.memorySummary || '',
+        };
+
+        // Use aiService.generateSystemReply directly if configured, for better memory context
+        if (this._aiService && this._aiService.isConfigured()) {
+            try {
+                const context = {
+                    system: enrichedState.system,
+                    personality: enrichedState.personality || this.systemPersonality,
+                    properties: enrichedState.properties,
+                    age: enrichedState.age,
+                    chatHistory: this.messages.slice(-20).filter(m => m.role === 'user' || m.role === 'system').map(m => ({
+                        role: m.role === 'user' ? 'user' : 'assistant',
+                        content: m.content,
+                    })),
+                    memory: enrichedState.memorySummary,
+                };
+                const result = await this._aiService.generateSystemReply(context, text);
+                if (result && result.reply) {
+                    return this._processAIResponse(result.reply);
+                }
+            } catch (err) {
+                console.warn('generateSystemReply failed, falling back:', err.message);
+            }
+        }
+
         const prompt = this._enhancePrompt(
             `宿主说："${text}"。请以你的人格特色自然地回应。`,
             this.systemPersonality,
-            gameState
+            enrichedState
         );
-        return this._callAIOrFallback(prompt, 'general', text, gameState);
+        return this._callAIOrFallback(prompt, 'general', text, enrichedState);
     }
 
     // --------------------------------------------------------
