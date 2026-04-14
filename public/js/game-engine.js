@@ -2168,8 +2168,9 @@ export class GameEngine {
         check('str_max', props.STR >= 10, '铁骨铜皮', '体质达到满分');
         check('mny_max', props.MNY >= 10, '富可敌国', '家境达到满分');
         check('spr_max', props.SPR >= 10, '乐天派', '快乐达到满分');
-        check('all_high', Object.values(props).every(v => v >= 7), '全面发展', '所有属性均达到7以上');
-        check('balanced', Math.max(...Object.values(props)) - Math.min(...Object.values(props)) <= 2, '均衡人生', '各属性差距不超过2');
+        const propValues = Object.values(props);
+        check('all_high', propValues.every(v => v >= 7), '全面发展', '所有属性均达到7以上');
+        check('balanced', Math.max(...propValues) - Math.min(...propValues) <= 2, '均衡人生', '各属性差距不超过2');
 
         // Story milestones
         check('first_choice', this._lastDecisionAge > 0, '人生抉择', '完成了第一次重要抉择');

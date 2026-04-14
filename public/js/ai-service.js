@@ -520,7 +520,8 @@ class AIService {
         }
 
         if (Array.isArray(chatHistory) && chatHistory.length > 0) {
-            const recentHistory = chatHistory.slice(-10);
+            const MAX_CHAT_HISTORY_MESSAGES = 10;
+            const recentHistory = chatHistory.slice(-MAX_CHAT_HISTORY_MESSAGES);
             for (const msg of recentHistory) {
                 if (msg.role === 'user') {
                     messages.push({ role: 'user', content: msg.content });

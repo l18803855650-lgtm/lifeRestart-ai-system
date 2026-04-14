@@ -512,10 +512,12 @@ export class ChatTerminal {
      * 生成普通对话的 AI 回复
      */
     async _generateResponse(text, gameState) {
+        const CHAT_HISTORY_LIMIT = 20;
+
         // Build enriched game state with chat history and memory
         const enrichedState = {
             ...gameState,
-            chatHistory: this.messages.slice(-20).map(m => ({
+            chatHistory: this.messages.slice(-CHAT_HISTORY_LIMIT).map(m => ({
                 role: m.role === 'user' ? 'user' : 'system',
                 content: m.content,
             })),
@@ -530,7 +532,7 @@ export class ChatTerminal {
                     personality: enrichedState.personality || this.systemPersonality,
                     properties: enrichedState.properties,
                     age: enrichedState.age,
-                    chatHistory: this.messages.slice(-20).filter(m => m.role === 'user' || m.role === 'system').map(m => ({
+                    chatHistory: this.messages.slice(-CHAT_HISTORY_LIMIT).filter(m => m.role === 'user' || m.role === 'system').map(m => ({
                         role: m.role === 'user' ? 'user' : 'assistant',
                         content: m.content,
                     })),

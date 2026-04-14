@@ -918,8 +918,7 @@ export class MemoryEngine {
             });
         }
 
-        const memoriesSet = new Set(this.memories.filter(m => m.age < cutoffAge && m.importance < 0.7).map(m => m.id));
-        this.memories = this.memories.filter(m => !memoriesSet.has(m.id));
+        this.memories = this.memories.filter(m => !(m.age < cutoffAge && m.importance < 0.7));
     }
 }
 
