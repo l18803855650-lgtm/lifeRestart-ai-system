@@ -2254,9 +2254,9 @@ ul, ol { list-style: none; }
   margin: -6px -8px;
 }
 
-#current-task-summary[style*="pointer"],
-#inventory-summary[style*="pointer"],
-#relationship-summary[style*="pointer"] {
+#current-task-summary.clickable,
+#inventory-summary.clickable,
+#relationship-summary.clickable {
   cursor: pointer;
 }
 

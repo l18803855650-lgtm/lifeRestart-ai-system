@@ -129,6 +129,12 @@ const BASE_PROPERTY_POINTS = 20;
  */
 const MAX_TALENT_SELECTIONS = 3;
 
+/**
+ * AI 事件文本属性变化解析正则（匹配中文括号 +N 格式）
+ */
+const AI_STAT_INCREASE_PATTERN = /[（(]([^）)]+)[+＋](\d+)[）)]/g;
+const AI_STAT_DECREASE_PATTERN = /[（(]([^）)]+)[-－](\d+)[）)]/g;
+
 // ═══════════════════════════════════════════════════════════════
 // 本地事件库 —— 按年龄段细分的丰富叙事文本
 // ═══════════════════════════════════════════════════════════════
@@ -1063,7 +1069,7 @@ export class GameEngine {
         const yearlyEvents = await this._generateYearlyEvents(age);
         for (const evt of yearlyEvents) {
             events.push(evt);
-            // Parse and apply AI stat changes from event text
+            // 解析并应用 AI 事件文本中的属性变化
             if (evt.source === 'ai' && evt.text) {
                 this._applyAIStatChanges(evt.text, propertyChanges);
             }
@@ -1543,6 +1549,10 @@ export class GameEngine {
      * Parse and apply stat changes from AI event text
      * Supports format: （颜值+1）（智力-2）（体质+3）（家境-1）（快乐+2）
      */
+    /**
+     * 解析 AI 事件文本中的属性变化并应用
+     * 支持格式：（颜值+1）（智力-2）（体质+3）（家境-1）（快乐+2）
+     */
     _applyAIStatChanges(text, propertyChanges) {
         if (!text) return;
 
@@ -1554,11 +1564,12 @@ export class GameEngine {
             '快乐': 'SPR', '心情': 'SPR', '幸福': 'SPR',
         };
 
-        const pattern = /[（(]([^）)]+)[+＋](\d+)[）)]/g;
-        const negPattern = /[（(]([^）)]+)[-－](\d+)[）)]/g;
+        // 重置 lastIndex，避免全局正则复用时的状态污染
+        AI_STAT_INCREASE_PATTERN.lastIndex = 0;
+        AI_STAT_DECREASE_PATTERN.lastIndex = 0;
 
         let match;
-        while ((match = pattern.exec(text)) !== null) {
+        while ((match = AI_STAT_INCREASE_PATTERN.exec(text)) !== null) {
             const propName = match[1].trim();
             const delta = parseInt(match[2], 10);
             const key = propNameMap[propName];
@@ -1566,7 +1577,7 @@ export class GameEngine {
                 this._applyPropertyChange(key, delta, propertyChanges);
             }
         }
-        while ((match = negPattern.exec(text)) !== null) {
+        while ((match = AI_STAT_DECREASE_PATTERN.exec(text)) !== null) {
             const propName = match[1].trim();
             const delta = -parseInt(match[2], 10);
             const key = propNameMap[propName];

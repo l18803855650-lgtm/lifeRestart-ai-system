@@ -40,6 +40,9 @@ const ALL_KEYWORDS = {
     ...CTHULHU_KEYWORDS,
 };
 
+/** 压缩时保留记忆的最低重要性阈值 */
+const MIN_IMPORTANCE_THRESHOLD = 0.7;
+
 // ============================================================
 // 记忆引擎主类
 // ============================================================
@@ -918,7 +921,7 @@ export class MemoryEngine {
             });
         }
 
-        this.memories = this.memories.filter(m => !(m.age < cutoffAge && m.importance < 0.7));
+        this.memories = this.memories.filter(m => !(m.age < cutoffAge && m.importance < MIN_IMPORTANCE_THRESHOLD));
     }
 }
 

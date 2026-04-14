@@ -932,7 +932,7 @@ class App {
             taskSummary.innerHTML = task
                 ? `<strong>${_escapeHtml(task.title || '系统任务')}</strong><span>${_escapeHtml(task.description || '')}</span>`
                 : '暂无进行中的任务';
-            taskSummary.style.cursor = task ? 'pointer' : 'default';
+            taskSummary.classList.toggle('clickable', !!task);
             taskSummary.onclick = task ? () => this._showWorldModal('task', task, world) : null;
         }
 
@@ -940,11 +940,11 @@ class App {
             const items = world.inventory || [];
             if (!items.length) {
                 inventorySummary.textContent = '尚未获得关键物品';
-                inventorySummary.style.cursor = 'default';
+                inventorySummary.classList.remove('clickable');
                 inventorySummary.onclick = null;
             } else {
                 inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 6).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
-                inventorySummary.style.cursor = 'pointer';
+                inventorySummary.classList.add('clickable');
                 inventorySummary.onclick = () => this._showWorldModal('inventory', null, world);
             }
         }
@@ -953,11 +953,11 @@ class App {
             const relations = world.relationships || [];
             if (!relations.length) {
                 relationshipSummary.textContent = '你的人生故事还没有重要人物登场';
-                relationshipSummary.style.cursor = 'default';
+                relationshipSummary.classList.remove('clickable');
                 relationshipSummary.onclick = null;
             } else {
                 relationshipSummary.innerHTML = `<div class="info-list">${relations.map(rel => `<div class="info-list-item"><strong>${_escapeHtml(rel.name)}</strong><span>好感 ${_escapeHtml(String(rel.attitude ?? 0))}</span></div>`).join('')}</div>`;
-                relationshipSummary.style.cursor = 'pointer';
+                relationshipSummary.classList.add('clickable');
                 relationshipSummary.onclick = () => this._showWorldModal('relationships', null, world);
             }
         }
