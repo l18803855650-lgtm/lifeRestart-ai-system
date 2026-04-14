@@ -1104,16 +1104,87 @@ export class GameEngine {
             }
         }
 
-        // ── 7. 动态任务生成 ──
+        // ── 7. AI NPC 遭遇（概率触发） ──
+        if (age >= 3 && Math.random() < 0.25) {
+            try {
+                const npcResult = await this._generateNPCEncounter(age);
+                if (npcResult) {
+                    events.push({
+                        type: 'npc_encounter',
+                        text: npcResult.event,
+                        importance: 2,
+                        source: npcResult.source,
+                    });
+                    if (npcResult.npc) {
+                        try {
+                            memoryEngine.updateRelationship(
+                                npcResult.npc.name,
+                                npcResult.npc.attitude || 10,
+                                npcResult.event
+                            );
+                        } catch (e) { /* 静默处理 */ }
+                    }
+                    if (npcResult.item) {
+                        try {
+                            memoryEngine.addItem(npcResult.item.name, npcResult.item.description || '', npcResult.item.rarity || 'common');
+                            events.push({
+                                type: 'item',
+                                text: `获得物品：${npcResult.item.name}`,
+                                importance: 1,
+                            });
+                        } catch (e) { /* 静默处理 */ }
+                    }
+                    try {
+                        memoryEngine.addEvent(age, npcResult.event, 2);
+                    } catch (e) { /* 静默处理 */ }
+                }
+            } catch (e) {
+                console.warn('NPC遭遇生成失败：', e.message);
+            }
+        }
+
+        // ── 8. AI 随机物品发现（概率触发） ──
+        if (age >= 5 && Math.random() < 0.15) {
+            try {
+                const itemResult = await this._generateItemDiscovery(age);
+                if (itemResult) {
+                    events.push({
+                        type: 'item_discovery',
+                        text: itemResult.event,
+                        importance: 1,
+                        source: itemResult.source,
+                    });
+                    if (itemResult.item) {
+                        try {
+                            memoryEngine.addItem(itemResult.item.name, itemResult.item.description || '', itemResult.item.rarity || 'common');
+                        } catch (e) { /* 静默处理 */ }
+                    }
+                    if (itemResult.effect) {
+                        for (const [key, delta] of Object.entries(itemResult.effect)) {
+                            if (this._properties.hasOwnProperty(key)) {
+                                this._applyPropertyChange(key, delta, propertyChanges);
+                            }
+                        }
+                    }
+                    try {
+                        memoryEngine.addEvent(age, itemResult.event, 1);
+                    } catch (e) { /* 静默处理 */ }
+                }
+            } catch (e) {
+                console.warn('物品发现生成失败：', e.message);
+            }
+        }
+
+        // ── 9. 动态任务生成（优先 AI） ──
         if (age - this._lastTaskAge >= 4 && Math.random() < 0.45) {
-            task = this._generateTask(age);
+            task = await this._generateTaskWithAI(age);
             if (task) {
                 this._currentTask = task;
                 this._lastTaskAge = age;
             }
         }
 
-        // ── 8. 关键人生抉择 ──
+        // ── 10. 关键人生抉择 ──
         let decision = null;
         if (this._alive && age >= 12 && age - this._lastDecisionAge >= 4) {
             decision = this._generateLifeDecision(age);
@@ -1127,14 +1198,14 @@ export class GameEngine {
             }
         }
 
-        // ── 9. 生成阶段总结（每 10 年） ──
+        // ── 11. 生成阶段总结（每 10 年） ──
         try {
             if (memoryEngine.shouldGenerateSummary && memoryEngine.shouldGenerateSummary(age)) {
                 memoryEngine.generatePeriodSummary(age);
             }
         } catch (e) { /* 静默处理 */ }
 
-        // ── 10. 死亡判定 ──
+        // ── 12. 死亡判定 ──
         const deathCheck = this._checkDeath(age);
         if (deathCheck.isDead) {
             this._alive = false;
@@ -1153,7 +1224,7 @@ export class GameEngine {
             } catch (e) { /* 静默处理 */ }
         }
 
-        // ── 11. 成就检测 ──
+        // ── 13. 成就检测 ──
         const newAchievements = this._checkAchievements(age);
         for (const ach of newAchievements) {
             events.push({
@@ -2293,6 +2364,136 @@ export class GameEngine {
         }
 
         return groups;
+    }
+
+    /**
+     * 使用 AI 生成动态任务（优先 AI，失败则本地兜底）
+     */
+    async _generateTaskWithAI(age) {
+        // 先尝试 AI 生成
+        try {
+            if (this._aiService && this._aiService.isConfigured() && this._aiService.generateDynamicTask) {
+                const context = {
+                    age,
+                    properties: this.getProperties(),
+                    system: this._system,
+                    talents: this._selectedTalents.map(t => t.name),
+                };
+                const result = await this._aiService.generateDynamicTask(context);
+                if (result && result.task) {
+                    const task = result.task;
+                    // 确保 task 有必要的字段
+                    if (!task.title) task.title = '系统任务';
+                    if (task.choices && task.choices.length > 0) {
+                        return task;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('AI 动态任务生成失败，回退本地：', e.message);
+        }
+        // 回退到本地任务池
+        return this._generateTask(age);
+    }
+
+    /**
+     * 生成 NPC 遭遇事件（优先 AI，失败则本地兜底）
+     */
+    async _generateNPCEncounter(age) {
+        try {
+            if (this._aiService && this._aiService.generateNPCEncounter) {
+                const context = {
+                    age,
+                    properties: this.getProperties(),
+                    system: this._system,
+                };
+                return await this._aiService.generateNPCEncounter(context);
+            }
+        } catch (e) {
+            console.warn('NPC 遭遇生成失败：', e.message);
+        }
+        // 本地兜底
+        return this._localGenerateNPCEncounter(age);
+    }
+
+    /**
+     * 生成物品发现事件（优先 AI，失败则本地兜底）
+     */
+    async _generateItemDiscovery(age) {
+        try {
+            if (this._aiService && this._aiService.generateRandomItem) {
+                const context = {
+                    age,
+                    properties: this.getProperties(),
+                    system: this._system,
+                };
+                return await this._aiService.generateRandomItem(context);
+            }
+        } catch (e) {
+            console.warn('物品发现生成失败：', e.message);
+        }
+        // 本地兜底
+        return this._localGenerateItemDiscovery(age);
+    }
+
+    /**
+     * 本地 NPC 遭遇生成（无 AI 时使用）
+     */
+    _localGenerateNPCEncounter(age) {
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        if (age <= 11) {
+            return pick([
+                { npc: { name: '小明', relation: '同学', attitude: 20 }, event: '你在学校认识了一个新朋友小明，你们很快成为了好伙伴。', item: null, source: 'local' },
+                { npc: { name: '王老师', relation: '恩师', attitude: 30 }, event: '班主任王老师对你格外关注，鼓励你好好学习。', item: null, source: 'local' },
+            ]);
+        }
+        if (age <= 22) {
+            return pick([
+                { npc: { name: '陈思涵', relation: '同学', attitude: 25 }, event: '你在活动中结识了陈思涵，你们志趣相投。', item: null, source: 'local' },
+                { npc: { name: '赵小曼', relation: '朋友', attitude: 30 }, event: '你和赵小曼因为一次合作成为了好朋友。', item: null, source: 'local' },
+            ]);
+        }
+        if (age <= 50) {
+            return pick([
+                { npc: { name: '张伟', relation: '同事', attitude: 15 }, event: '新来的同事张伟和你分在了同一个项目组。', item: null, source: 'local' },
+                { npc: { name: '林小雨', relation: '朋友', attitude: 25 }, event: '你在一次聚会上认识了林小雨，聊得很投机。', item: null, source: 'local' },
+                { npc: { name: '老王', relation: '邻居', attitude: 15 }, event: '你的新邻居老王是个热心人，经常帮你的忙。', item: null, source: 'local' },
+            ]);
+        }
+        return pick([
+            { npc: { name: '老李', relation: '棋友', attitude: 25 }, event: '公园里认识的老李和你成了棋友，每天约着下棋。', item: null, source: 'local' },
+            { npc: { name: '社区张主任', relation: '朋友', attitude: 20 }, event: '你参加社区活动时认识了热心的张主任。', item: null, source: 'local' },
+        ]);
+    }
+
+    /**
+     * 本地物品发现生成（无 AI 时使用）
+     */
+    _localGenerateItemDiscovery(age) {
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        if (age <= 12) {
+            return pick([
+                { item: { name: '幸运弹珠', description: '闪亮的玻璃弹珠', rarity: 'common' }, event: '你在操场捡到了一颗漂亮的弹珠，决定留作纪念。', effect: null, source: 'local' },
+                { item: { name: '故事书', description: '一本冒险故事书', rarity: 'common' }, event: '爸妈送了你一本故事书，你爱不释手。', effect: null, source: 'local' },
+            ]);
+        }
+        if (age <= 22) {
+            return pick([
+                { item: { name: '友谊手链', description: '好友亲手编织的手链', rarity: 'rare' }, event: '好朋友送了你一条亲手编的手链，你格外珍惜。', effect: null, source: 'local' },
+                { item: { name: '日记本', description: '记录心情的精致日记本', rarity: 'common' }, event: '你开始用日记本记录自己的想法。', effect: null, source: 'local' },
+            ]);
+        }
+        if (age <= 50) {
+            return pick([
+                { item: { name: '投资合同', description: '一份有潜力的协议', rarity: 'rare' }, event: '你签下了一份重要的投资合同。', effect: { MNY: 1 }, source: 'local' },
+                { item: { name: '神秘钥匙', description: '不知道能开什么的钥匙', rarity: 'epic' }, event: '你在老房子发现了一把神秘的钥匙。', effect: null, source: 'local' },
+                { item: { name: '老照片', description: '泛黄的全家福', rarity: 'rare' }, event: '整理旧物时发现了一张珍贵的全家福。', effect: { SPR: 1 }, source: 'local' },
+            ]);
+        }
+        return pick([
+            { item: { name: '传家宝', description: '世代相传的家族信物', rarity: 'epic' }, event: '长辈将传家宝郑重地交到了你手上。', effect: { SPR: 1 }, source: 'local' },
+            { item: { name: '人生相册', description: '精心整理的影集', rarity: 'rare' }, event: '你把一辈子的照片整理成了一本精美的相册。', effect: { SPR: 1 }, source: 'local' },
+        ]);
     }
 
     /**

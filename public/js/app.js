@@ -865,7 +865,7 @@ class App {
                     this.showToast('模拟出错: ' + err.message, 'error');
                 } finally {
                     nextYearBtn.disabled = false;
-                    nextYearBtn.textContent = '下一年';
+                    nextYearBtn.textContent = '⏭️ 下一年';
                 }
             };
         }
@@ -902,7 +902,7 @@ class App {
 
         const activeSystem = systemManager.getActiveSystem() || (this._selectedSystemId ? systemManager.getSystem(this._selectedSystemId) : null);
         if (systemName && activeSystem) systemName.textContent = activeSystem.name;
-        if (ageBadge) ageBadge.textContent = `${Math.max(0, gameEngine.getCurrentAge())} 岁`;
+        if (ageBadge) ageBadge.textContent = Math.max(0, gameEngine.getCurrentAge());
 
         this._renderStatsBars(statsArea);
         this._renderCustomStatsBars(customStatsArea);
@@ -1103,11 +1103,14 @@ class App {
         }
 
         if (result.isEnd) {
+            // Find the death event text from events array
+            const deathEvent = (result.events || []).find(e => e.type === 'death');
+            const deathText = deathEvent ? deathEvent.text : '你的一生结束了';
             const deathOverlay = _createElement('div', 'death-overlay');
             deathOverlay.innerHTML = `
                 <div class="death-content">
                     <div class="death-icon">💀</div>
-                    <div class="death-text">${_escapeHtml(result.deathReason || '你的一生结束了')}</div>
+                    <div class="death-text">${_escapeHtml(deathText)}</div>
                 </div>
             `;
             yearBlock.appendChild(deathOverlay);
@@ -1215,9 +1218,20 @@ class App {
         const quickCmds = page.querySelector('#quick-commands');
 
         // 设置聊天终端依赖
-        if (aiService.isConfigured && aiService.isConfigured()) {
-            chatTerminal.setAIService(aiService);
+        chatTerminal.setAIService(aiService);
+
+        // 设置系统人格（用于本地降级回复的语气风格）
+        const activeSystemForChat = systemManager.getActiveSystem();
+        if (activeSystemForChat && !chatTerminal.systemPersonality) {
+            chatTerminal.systemPersonality = {
+                name: activeSystemForChat.name,
+                tone: activeSystemForChat.tone || 'cheerful',
+                description: activeSystemForChat.personality || activeSystemForChat.description,
+                systemPrompt: activeSystemForChat.systemPrompt,
+                greeting: activeSystemForChat.greeting,
+            };
         }
+
         chatTerminal.setGameStateProvider(() => {
             const activeSystem = systemManager.getActiveSystem();
             return {
