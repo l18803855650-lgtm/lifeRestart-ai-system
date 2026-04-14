@@ -258,7 +258,7 @@ class AIService {
                 `当前世界体系：${systemDesc}。`,
                 '请为玩家生成一个有趣的互动任务，要贴合年龄和属性。',
                 '严格按以下JSON格式输出，不要输出任何其他内容：',
-                '{"title":"任务标题","description":"任务描述","choices":[{"text":"选项A","result":"选择A的结果","effect":{"属性名":数值}},{"text":"选项B","result":"选择B的结果","effect":{"属性名":数值}}]}',
+                '{"title":"任务标题","description":"任务描述","choices":[{"text":"选项A","result":"选择A的结果","effect":{"CHR":1}},{"text":"选项B","result":"选择B的结果","effect":{"INT":-1}}]}',
                 '属性名只能是：CHR/INT/STR/MNY/SPR，数值为整数（正负均可，绝对值1-3）。',
                 '选项必须2-4个。任务要有趣味性和抉择感。',
             ].join('\n');
@@ -305,7 +305,8 @@ class AIService {
                 `当前世界体系：${systemDesc}。`,
                 '请为玩家生成一次NPC遭遇事件。',
                 '严格按以下JSON格式输出，不要输出任何其他内容：',
-                '{"name":"NPC名字","relation":"关系类型","event":"遭遇描述（50字以内）","attitude":好感度数值(-100到100),"item":null或{"name":"物品名","description":"物品描述","rarity":"common/rare/epic"}}',
+                '{"name":"NPC名字","relation":"关系类型","event":"遭遇描述（50字以内）","attitude":20,"item":null}',
+                '说明：attitude为好感度数值（-100到100的整数），item可以是null或者{"name":"物品名","description":"物品描述","rarity":"common"}（rarity可选common/rare/epic）。',
                 '关系类型可以是：朋友/对手/恩师/恋人/同事/邻居/陌生人等。',
                 'NPC名字要有代入感，遭遇要贴合年龄和世界体系。',
             ].join('\n');
@@ -360,7 +361,8 @@ class AIService {
                 `当前世界体系：${systemDesc}。`,
                 '请为玩家生成一个获得物品的事件。',
                 '严格按以下JSON格式输出，不要输出任何其他内容：',
-                '{"name":"物品名称","description":"物品描述（30字以内）","rarity":"common/rare/epic/legendary","event":"获得物品的事件描述（50字以内）","effect":null或{"属性名":数值}}',
+                '{"name":"物品名称","description":"物品描述（30字以内）","rarity":"rare","event":"获得物品的事件描述（50字以内）","effect":null}',
+                '说明：rarity可选common/rare/epic/legendary，effect可以是null或者{"CHR":1}格式（属性名只能是CHR/INT/STR/MNY/SPR，数值为整数）。',
                 '物品要贴合年龄和世界体系，有趣且有想象力。',
             ].join('\n');
 
