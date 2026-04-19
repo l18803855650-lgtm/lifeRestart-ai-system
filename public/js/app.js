@@ -629,11 +629,29 @@ class App {
         if (countDisplay) countDisplay.textContent = '已选择 0/3';
         if (confirmBtn) confirmBtn.disabled = true;
 
-        const performDraw = () => {
+        const performDraw = async () => {
+                // Bug #3: 尝试 AI 生成天赋（基于系统类型的网文风格天赋）
+                let aiTalents = null;
+                const activeSystem = systemManager.getActiveSystem();
+                if (aiService.isConfigured && aiService.isConfigured() && activeSystem) {
+                    try {
+                        drawBtn && (drawBtn.textContent = '🎲 天命降临中...');
+                        drawBtn && (drawBtn.disabled = true);
+                        aiTalents = await this._generateAITalents(activeSystem);
+                    } catch (err) {
+                        console.warn('AI 天赋生成失败，使用默认天赋池：', err.message);
+                    }
+                }
+
                 try {
-                    this._drawnTalents = gameEngine.drawTalents(10);
+                    if (aiTalents && aiTalents.length >= 10) {
+                        this._drawnTalents = aiTalents.slice(0, 10);
+                    } else {
+                        this._drawnTalents = gameEngine.drawTalents(10);
+                    }
                 } catch (err) {
                     this.showToast('天赋抽取失败: ' + err.message, 'error');
+                    if (drawBtn) { drawBtn.textContent = '🎲 十连抽！'; drawBtn.disabled = false; }
                     return;
                 }
 
@@ -748,6 +766,70 @@ class App {
         const count = this._selectedTalentIds.size;
         if (countDisplay) countDisplay.textContent = `已选择 ${count}/3`;
         if (confirmBtn) confirmBtn.disabled = (count === 0);
+    }
+
+    /**
+     * Bug #3: AI 生成天赋（基于系统类型的网文小说风格）
+     * 只在有 AI 服务时调用，否则使用默认天赋池
+     */
+    async _generateAITalents(activeSystem) {
+        const systemName = activeSystem.name || '伴生系统';
+        const systemId = activeSystem.id || 'default';
+        const systemDesc = activeSystem.description || '';
+
+        const systemStyleMap = {
+            cultivation: '修仙/修真小说',
+            tycoon: '商战/都市大亨小说',
+            villain: '反派系统/反派崛起小说',
+            checkin: '签到系统/日常签到小说',
+            signin: '签到系统/每日签到小说',
+            apocalypse: '末世/末日求生小说',
+            cthulhu: '克苏鲁/恐怖小说',
+        };
+        const novelStyle = systemStyleMap[systemId] || `${systemName}类型的网文小说`;
+
+        const prompt = [
+            { role: 'system', content: `你是一个网文小说天赋生成器。请根据"${novelStyle}"风格，生成10个天赋。
+要求：
+1. 每个天赋包含 name(名称), description(描述), grade(品级0-4), effect(属性效果对象)
+2. 品级分布：4个grade0(普通), 3个grade1(优秀), 2个grade2(稀有), 1个grade3(史诗)
+3. 天赋名称要符合${novelStyle}的风格和世界观
+4. effect 是一个对象，键是属性名(CHR/INT/STR/MNY/SPR)，值是整数加成
+5. 直接返回 JSON 数组，不要多余解释
+6. description 简短描述效果，比如"智力+3"
+
+系统描述：${systemDesc}` },
+            { role: 'user', content: `请生成10个符合"${novelStyle}"风格的天赋，直接返回JSON数组。` }
+        ];
+
+        const reply = await aiService.chat(prompt, { temperature: 0.9, max_tokens: 1200 });
+
+        // 解析 AI 返回的 JSON
+        let talents;
+        try {
+            // 尝试提取 JSON 数组
+            const jsonMatch = reply.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                talents = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('未找到 JSON 数组');
+            }
+        } catch (e) {
+            throw new Error('AI 天赋解析失败: ' + e.message);
+        }
+
+        // 验证和规范化
+        if (!Array.isArray(talents) || talents.length < 10) {
+            throw new Error('AI 生成天赋数量不足');
+        }
+
+        return talents.slice(0, 10).map((t, idx) => ({
+            id: 9000 + idx,
+            name: String(t.name || `天赋${idx + 1}`).substring(0, 12),
+            description: String(t.description || '').substring(0, 50),
+            grade: Math.min(4, Math.max(0, parseInt(t.grade) || 0)),
+            effect: (t.effect && typeof t.effect === 'object') ? t.effect : {},
+        }));
     }
 
     // ────────────────────────────────────────────────────────
@@ -946,6 +1028,9 @@ class App {
         const saveBtn = page.querySelector('#btn-save-game');
         const closeTaskBtn = page.querySelector('#btn-task-close');
 
+        // 初始化底部 Tab 导航
+        this._initSimTabs(page);
+
         if (gameEngine.getPhase() !== 'living' && gameEngine.getCurrentAge() < 0) {
             try {
                 gameEngine.startLife();
@@ -967,9 +1052,13 @@ class App {
                     this._updateSimulationUI();
                     this._persistProgress();
 
+                    // 处理任务系统（Bug #6）
                     if (result.task) {
                         this._showTaskOverlay(result.task);
                     }
+
+                    // 更新任务面板
+                    this._updateQuestPanel();
 
                     if (result.isEnd) {
                         nextYearBtn.style.display = 'none';
@@ -981,7 +1070,7 @@ class App {
                     this.showToast('模拟出错: ' + err.message, 'error');
                 } finally {
                     nextYearBtn.disabled = false;
-                    nextYearBtn.textContent = '下一年';
+                    nextYearBtn.textContent = '⏭️ 下一年';
                 }
             };
         }
@@ -1005,6 +1094,75 @@ class App {
         }
     }
 
+    /** 初始化模拟页底部 Tab 切换 */
+    _initSimTabs(page) {
+        const tabBtns = page.querySelectorAll('.sim-tab-btn');
+        const tabPanels = page.querySelectorAll('.sim-tab-panel');
+
+        tabBtns.forEach(btn => {
+            btn.onclick = () => {
+                const targetId = btn.dataset.tab;
+                tabBtns.forEach(b => b.classList.remove('active'));
+                tabPanels.forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                const target = page.querySelector(`#${targetId}`);
+                if (target) target.classList.add('active');
+
+                // 更新对应面板内容
+                if (targetId === 'tab-tasks') this._updateQuestPanel();
+                if (targetId === 'tab-inventory' || targetId === 'tab-relations') this._renderWorldPanels();
+            };
+        });
+    }
+
+    /** 更新任务/主线/支线面板（Bug #6） */
+    _updateQuestPanel() {
+        const page = this.pages['page-life-simulation'];
+        if (!page) return;
+        const questList = page.querySelector('#quest-list');
+        const taskSummary = page.querySelector('#current-task-summary');
+        if (!questList) return;
+
+        const quests = gameEngine.getQuests ? gameEngine.getQuests() : [];
+        const world = gameEngine.getWorldPanels();
+
+        // 当前动态任务
+        if (taskSummary) {
+            const task = world.currentTask;
+            taskSummary.innerHTML = task
+                ? `<strong>${_escapeHtml(task.title || '系统任务')}</strong><span>${_escapeHtml(task.description || '')}</span>`
+                : '暂无进行中的任务';
+        }
+
+        // 渲染任务列表
+        questList.innerHTML = '';
+        if (quests.length === 0) {
+            questList.innerHTML = '<p class="muted-text" style="font-size:0.85rem;">暂无活跃任务，继续推进人生吧！</p>';
+            return;
+        }
+        quests.forEach(quest => {
+            const isComplete = quest.status === 'completed';
+            const isMain = quest.type === 'main';
+            const card = _createElement('div', `quest-card ${isMain ? 'quest-main' : 'quest-side'} ${isComplete ? 'quest-completed' : ''}`);
+            const progress = quest.progress || 0;
+            const target = quest.target || 1;
+            const pct = Math.min(100, Math.round((progress / target) * 100));
+            card.innerHTML = `
+                <div class="quest-card-header">
+                    <span class="quest-card-title">${_escapeHtml(quest.title)}</span>
+                    <span class="quest-card-type ${isMain ? '' : 'side'}">${isMain ? '主线' : '支线'}</span>
+                </div>
+                <div class="quest-card-desc">${_escapeHtml(quest.description)}</div>
+                <div class="quest-card-progress">
+                    <div class="quest-progress-bar"><div class="quest-progress-fill" style="width:${pct}%"></div></div>
+                    <span>${isComplete ? '✅ 已完成' : `${pct}%`}</span>
+                </div>
+                ${quest.reward ? `<div class="quest-reward">🏆 ${_escapeHtml(quest.reward)}</div>` : ''}
+            `;
+            questList.appendChild(card);
+        });
+    }
+
     _updateSimulationUI() {
         const page = this.pages['page-life-simulation'];
         if (!page) return;
@@ -1012,18 +1170,19 @@ class App {
         const ageBadge = page.querySelector('#age-badge');
         const systemEmoji = page.querySelector('#system-emoji');
         const systemName = page.querySelector('#system-name');
-        const statsArea = page.querySelector('#stats-bars');
-        const customStatsArea = page.querySelector('#sim-custom-stats');
+        const statsInline = page.querySelector('#stats-inline');
+        const customStatsInline = page.querySelector('#sim-custom-stats-inline');
         const eventLog = page.querySelector('#event-log');
         const nextYearBtn = page.querySelector('#btn-next-year');
 
         const activeSystem = systemManager.getActiveSystem() || (this._selectedSystemId ? systemManager.getSystem(this._selectedSystemId) : null);
         if (systemName && activeSystem) systemName.textContent = activeSystem.name;
         if (systemEmoji && activeSystem) systemEmoji.textContent = activeSystem.emoji || '🎮';
-        if (ageBadge) ageBadge.textContent = `${Math.max(0, gameEngine.getCurrentAge())} 岁`;
+        if (ageBadge) ageBadge.textContent = `${Math.max(0, gameEngine.getCurrentAge())}`;
 
-        this._renderStatsBars(statsArea);
-        this._renderCustomStatsBars(customStatsArea);
+        // Bug #2: 紧凑内联属性显示
+        this._renderStatsInline(statsInline);
+        this._renderCustomStatsInline(customStatsInline);
         this._renderWorldPanels();
 
         if (eventLog) {
@@ -1040,24 +1199,17 @@ class App {
         const page = this.pages['page-life-simulation'];
         if (!page) return;
 
-        const taskSummary = page.querySelector('#current-task-summary');
+        // Bug #4: 元素现在在 tab 面板里
         const inventorySummary = page.querySelector('#inventory-summary');
         const relationshipSummary = page.querySelector('#relationship-summary');
         const world = gameEngine.getWorldPanels();
-
-        if (taskSummary) {
-            const task = world.currentTask;
-            taskSummary.innerHTML = task
-                ? `<strong>${_escapeHtml(task.title || '系统任务')}</strong><span>${_escapeHtml(task.description || '')}</span>`
-                : '暂无进行中的任务';
-        }
 
         if (inventorySummary) {
             const items = world.inventory || [];
             if (!items.length) {
                 inventorySummary.textContent = '尚未获得关键物品';
             } else {
-                inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 6).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
+                inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 12).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
             }
         }
 
@@ -1077,17 +1229,32 @@ class App {
         const eventLog = page?.querySelector('#event-log');
         if (!eventLog || !result) return;
 
+        // Bug #1: 可折叠的年度面板
         const yearBlock = _createElement('div', 'year-block');
-        const yearLabel = _createElement('div', 'year-label', `<span class="age-tag">${result.age} 岁</span>`);
-        yearBlock.appendChild(yearLabel);
+
+        // 生成预览文本（第一个事件的简短描述）
+        const firstEvent = (result.events || [])[0];
+        const previewText = firstEvent ? (firstEvent.text || String(firstEvent)).substring(0, 40) : '平静的一年';
+
+        // 年份标题栏（可点击折叠）
+        const header = _createElement('div', 'year-block-header');
+        header.innerHTML = `
+            <span class="age-tag">${result.age} 岁</span>
+            <span class="year-preview">${_escapeHtml(previewText)}${previewText.length > 40 ? '...' : ''}</span>
+            <span class="year-toggle">▼</span>
+        `;
+        yearBlock.appendChild(header);
+
+        // 年份详情（默认折叠，最新几年展开）
+        const body = _createElement('div', 'year-block-body');
 
         (result.events || []).forEach(evt => {
             const evtEl = _createElement('div', `event-item event-${evt.type || 'normal'}`, _escapeHtml(evt.text || evt));
-            yearBlock.appendChild(evtEl);
+            body.appendChild(evtEl);
         });
 
         if (result.systemMessage) {
-            yearBlock.appendChild(_createElement('div', 'event-item event-system', `【系统】${_escapeHtml(result.systemMessage)}`));
+            body.appendChild(_createElement('div', 'event-item event-system', `【系统】${_escapeHtml(result.systemMessage)}`));
         }
 
         if (result.choices && result.choices.length > 0) {
@@ -1100,7 +1267,7 @@ class App {
                     if (choice.callback) {
                         const choiceResult = await choice.callback();
                         if (choiceResult?.result) {
-                            yearBlock.appendChild(_createElement('div', 'event-item event-choice-result', _escapeHtml(choiceResult.result)));
+                            body.appendChild(_createElement('div', 'event-item event-choice-result', _escapeHtml(choiceResult.result)));
                         }
                         this._updateSimulationUI();
                         this._persistProgress();
@@ -1108,7 +1275,7 @@ class App {
                 };
                 choiceDiv.appendChild(btn);
             });
-            yearBlock.appendChild(choiceDiv);
+            body.appendChild(choiceDiv);
         }
 
         if (result.propertyChanges) {
@@ -1126,7 +1293,7 @@ class App {
                 })
                 .join('  ');
             if (changesText) {
-                yearBlock.appendChild(_createElement('div', 'property-change-hint', changesText));
+                body.appendChild(_createElement('div', 'property-change-hint', changesText));
             }
         }
 
@@ -1138,15 +1305,44 @@ class App {
                         <div class="death-text">${_escapeHtml(getDeathReasonText(result.deathReason) || '你的一生结束了')}</div>
                     </div>
                 `;
-            yearBlock.appendChild(deathOverlay);
+            body.appendChild(deathOverlay);
         }
+
+        yearBlock.appendChild(body);
+
+        // 点击标题栏切换展开/折叠
+        header.onclick = () => {
+            yearBlock.classList.toggle('expanded');
+        };
 
         eventLog.appendChild(yearBlock);
 
+        // 自动展开最新的记录，折叠旧的
         if (!rerendering) {
+            yearBlock.classList.add('expanded');
+            // 折叠旧的年份块（只保留最近3个展开）
+            const allBlocks = eventLog.querySelectorAll('.year-block');
+            if (allBlocks.length > 3) {
+                for (let i = 0; i < allBlocks.length - 3; i++) {
+                    allBlocks[i].classList.remove('expanded');
+                }
+            }
             requestAnimationFrame(() => {
                 eventLog.scrollTo({ top: eventLog.scrollHeight, behavior: 'smooth' });
             });
+        } else {
+            // 重新渲染时：展开最近3个，折叠其余
+            const allBlocks = eventLog.querySelectorAll('.year-block');
+            const total = allBlocks.length;
+            if (total > 3) {
+                // 计算当前索引
+                const idx = Array.from(allBlocks).indexOf(yearBlock);
+                if (idx >= total - 3) {
+                    yearBlock.classList.add('expanded');
+                }
+            } else {
+                yearBlock.classList.add('expanded');
+            }
         }
     }
 
@@ -1183,47 +1379,39 @@ class App {
         if (overlay) overlay.style.display = 'none';
     }
 
-    /** 渲染主属性条 */
-    _renderStatsBars(container) {
+    /** Bug #2: 紧凑内联属性显示（替代进度条） */
+    _renderStatsInline(container) {
         if (!container) return;
         const props = gameEngine.getProperties();
         container.innerHTML = '';
         for (const [key, config] of Object.entries(PROPERTIES)) {
             const val = props[key] || 0;
-            const pct = Math.min(100, Math.max(0, val * 10));
-            const row = _createElement('div', 'stat-bar-row', `
-                <span class="stat-label">${config.icon} ${config.name}</span>
-                <div class="stat-bar-track">
-                    <div class="stat-bar-fill" style="width:${pct}%;background:${config.color}"></div>
-                </div>
-                <span class="stat-value">${_formatNumber(val)}</span>
+            const chip = _createElement('span', 'stat-chip', `
+                <span class="stat-icon">${config.icon}</span>
+                <span class="stat-val">${_formatNumber(val)}</span>
             `);
-            container.appendChild(row);
+            container.appendChild(chip);
         }
     }
 
-    /** 渲染系统自定义属性条 */
-    _renderCustomStatsBars(container) {
+    /** Bug #2: 紧凑内联系统自定义属性显示 */
+    _renderCustomStatsInline(container) {
         if (!container) return;
         const customStats = gameEngine.getCustomStats();
         if (!customStats || customStats.length === 0) {
             container.style.display = 'none';
             return;
         }
-        container.style.display = 'block';
+        container.style.display = 'flex';
         container.innerHTML = '';
         customStats.forEach(stat => {
             const val = stat.current !== undefined ? stat.current : (stat.initial || 0);
-            const max = stat.max || 100;
-            const pct = Math.min(100, Math.max(0, (val / max) * 100));
-            const row = _createElement('div', 'stat-bar-row custom-stat', `
-                <span class="stat-label">${_escapeHtml(stat.icon || '✨')} ${_escapeHtml(stat.name || stat.label)}</span>
-                <div class="stat-bar-track">
-                    <div class="stat-bar-fill" style="width:${pct}%;background:${stat.color || '#aaa'}"></div>
-                </div>
-                <span class="stat-value">${_formatNumber(val)}</span>
+            const chip = _createElement('span', 'stat-chip', `
+                <span class="stat-icon">${_escapeHtml(stat.icon || '✨')}</span>
+                <span style="font-size:0.68rem;">${_escapeHtml(stat.name || stat.label)}</span>
+                <span class="stat-val">${_formatNumber(val)}</span>
             `);
-            container.appendChild(row);
+            container.appendChild(chip);
         });
     }
 
@@ -1242,10 +1430,19 @@ class App {
         const typingIndicator = page.querySelector('#typing-indicator');
         const quickCmds = page.querySelector('#quick-commands');
 
-        // 设置聊天终端依赖
-        if (aiService.isConfigured && aiService.isConfigured()) {
-            chatTerminal.setAIService(aiService);
+        // Bug #5: 始终设置 AI 服务（无论是否已配置，chatTerminal 内部会降级）
+        chatTerminal.setAIService(aiService);
+
+        // 设置系统人格（如果有活跃系统）
+        const activeSystem = systemManager.getActiveSystem();
+        if (activeSystem && !chatTerminal.systemPersonality) {
+            chatTerminal.setPersonality({
+                tone: activeSystem.tone || 'cheerful',
+                greeting: activeSystem.greeting || `【${activeSystem.name}】已上线，有什么想和我说的？`,
+                systemPrompt: activeSystem.systemPrompt || `你是${activeSystem.name}的伴生系统AI。${activeSystem.personality || ''}`,
+            });
         }
+
         chatTerminal.setGameStateProvider(() => ({
             age: gameEngine.getCurrentAge(),
             properties: gameEngine.getProperties(),

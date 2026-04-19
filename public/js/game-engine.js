@@ -671,6 +671,12 @@ export class GameEngine {
 
         /** @type {number} 上次出现关键人生抉择的年龄 */
         this._lastDecisionAge = -10;
+
+        /** @type {Array} Bug #6: 任务/主线/支线系统 */
+        this._quests = [];
+
+        /** @type {number} 用于生成唯一任务 ID */
+        this._questIdCounter = 0;
     }
 
     // ─────────────────────────────────────────────────
@@ -698,6 +704,8 @@ export class GameEngine {
         this._lastTaskAge = -10;
         this._storyFlags = new Set();
         this._lastDecisionAge = -10;
+        this._quests = [];
+        this._questIdCounter = 0;
 
         // 重置记忆引擎
         try {
@@ -943,6 +951,8 @@ export class GameEngine {
         this._deathReason = null;
         this._triggeredSpecials = new Set();
         this._lastTaskAge = -10;
+        this._quests = [];
+        this._questIdCounter = 0;
 
         // 更新自然寿命
         this._naturalLifespan = Math.min(120, 60 + this._properties.STR * 4);
@@ -1051,6 +1061,9 @@ export class GameEngine {
                 this._lastTaskAge = age;
             }
         }
+
+        // ── 7.5 Bug #6: 更新任务系统 ──
+        this._updateQuestSystem(age);
 
         // ── 8. 关键人生抉择 ──
         let decision = null;
@@ -1323,6 +1336,198 @@ export class GameEngine {
             currentTask: this._currentTask ? deepClone(this._currentTask) : null,
             customStats: this.getCustomStats(),
         };
+    }
+
+    // ─────────────────────────────────────────────────
+    // Bug #6: 任务/主线/支线系统
+    // ─────────────────────────────────────────────────
+
+    /**
+     * 获取所有任务（主线+支线）
+     * @returns {Array}
+     */
+    getQuests() {
+        return deepClone(this._quests);
+    }
+
+    /**
+     * 添加新任务
+     * @param {Object} quest - 任务配置
+     * @returns {Object} 创建的任务
+     */
+    addQuest(quest) {
+        const id = `quest_${++this._questIdCounter}`;
+        const newQuest = {
+            id,
+            type: quest.type || 'side', // 'main' 或 'side'
+            title: quest.title || '未命名任务',
+            description: quest.description || '',
+            status: 'active', // 'active', 'completed', 'failed'
+            progress: 0,
+            target: quest.target || 1,
+            reward: quest.reward || '',
+            triggerAge: this._age,
+            ...quest,
+        };
+        this._quests.push(newQuest);
+        return newQuest;
+    }
+
+    /**
+     * 推进任务进度
+     * @param {string} questId - 任务 ID
+     * @param {number} amount - 进度增量
+     */
+    advanceQuest(questId, amount = 1) {
+        const quest = this._quests.find(q => q.id === questId);
+        if (!quest || quest.status !== 'active') return null;
+        quest.progress = Math.min(quest.target, quest.progress + amount);
+        if (quest.progress >= quest.target) {
+            quest.status = 'completed';
+            // 应用奖励
+            if (quest.rewardEffect) {
+                this._applyEffectMap(quest.rewardEffect, {});
+            }
+        }
+        return quest;
+    }
+
+    /**
+     * 根据年龄自动生成/更新任务（每年调用）
+     */
+    _updateQuestSystem(age) {
+        const systemId = this._system?.id || 'default';
+
+        // 系统通用主线任务
+        if (age === 0 && !this._quests.some(q => q.type === 'main')) {
+            this.addQuest({
+                type: 'main',
+                title: '活过而立',
+                description: '活到30岁，完成人生第一阶段',
+                target: 30,
+                reward: '人生阅历加成',
+                rewardEffect: { SPR: 2, INT: 1 },
+            });
+        }
+
+        // 更新主线任务进度
+        this._quests.forEach(q => {
+            if (q.status === 'active' && q.title === '活过而立') {
+                q.progress = Math.min(30, age);
+            }
+            if (q.status === 'active' && q.title === '不惑之年') {
+                q.progress = Math.min(40, age);
+            }
+            if (q.status === 'active' && q.title === '知天命') {
+                q.progress = Math.min(50, age);
+            }
+        });
+
+        // 30岁完成后开新主线
+        if (age === 30) {
+            const mainDone = this._quests.find(q => q.title === '活过而立' && q.status === 'completed');
+            if (mainDone) {
+                this.addQuest({
+                    type: 'main',
+                    title: '不惑之年',
+                    description: '活到40岁，在人生中段找到方向',
+                    target: 40,
+                    reward: '智慧沉淀',
+                    rewardEffect: { INT: 2 },
+                });
+            }
+        }
+
+        if (age === 40) {
+            const mainDone = this._quests.find(q => q.title === '不惑之年' && q.status === 'completed');
+            if (mainDone) {
+                this.addQuest({
+                    type: 'main',
+                    title: '知天命',
+                    description: '活到50岁，接受命运的安排',
+                    target: 50,
+                    reward: '天命感悟',
+                    rewardEffect: { SPR: 3 },
+                });
+            }
+        }
+
+        // 系统专属支线任务
+        if (systemId === 'cultivation' && age === 16 && !this._quests.some(q => q.title === '筑基入门')) {
+            this.addQuest({
+                type: 'side',
+                title: '筑基入门',
+                description: '修炼到一定程度，完成筑基',
+                target: 1,
+                reward: '灵根觉醒',
+                rewardEffect: { STR: 2, INT: 1 },
+            });
+        }
+
+        if (systemId === 'tycoon' && age === 20 && !this._quests.some(q => q.title === '第一桶金')) {
+            this.addQuest({
+                type: 'side',
+                title: '第一桶金',
+                description: '在商业领域赚到第一笔大钱',
+                target: 1,
+                reward: '商业嗅觉',
+                rewardEffect: { MNY: 3 },
+            });
+        }
+
+        if (systemId === 'villain' && age === 18 && !this._quests.some(q => q.title === '初露锋芒')) {
+            this.addQuest({
+                type: 'side',
+                title: '初露锋芒',
+                description: '在一次冲突中展示你的能力',
+                target: 1,
+                reward: '威慑力提升',
+                rewardEffect: { CHR: 2, INT: 1 },
+            });
+        }
+
+        if ((systemId === 'checkin' || systemId === 'signin') && age === 12 && !this._quests.some(q => q.title === '连续签到')) {
+            this.addQuest({
+                type: 'side',
+                title: '连续签到',
+                description: '坚持签到，积累好运',
+                target: 10,
+                reward: '签到大礼包',
+                rewardEffect: { SPR: 2, MNY: 1 },
+            });
+        }
+
+        // 签到系统进度跟随年龄
+        if (systemId === 'checkin' || systemId === 'signin') {
+            const signInQuest = this._quests.find(q => q.title === '连续签到' && q.status === 'active');
+            if (signInQuest) {
+                signInQuest.progress = Math.min(signInQuest.target, age - 11);
+            }
+        }
+
+        // 修仙突破支线自动完成
+        if (systemId === 'cultivation') {
+            const jjQuest = this._quests.find(q => q.title === '筑基入门' && q.status === 'active');
+            if (jjQuest && this._storyFlags.has('cultivation:breakthrough')) {
+                jjQuest.progress = 1;
+            }
+        }
+
+        // 商战第一桶金
+        if (systemId === 'tycoon') {
+            const moneyQuest = this._quests.find(q => q.title === '第一桶金' && q.status === 'active');
+            if (moneyQuest && this._properties.MNY >= 6) {
+                moneyQuest.progress = 1;
+            }
+        }
+
+        // 反派初露锋芒
+        if (systemId === 'villain') {
+            const villainQuest = this._quests.find(q => q.title === '初露锋芒' && q.status === 'active');
+            if (villainQuest && (this._storyFlags.has('villain:dominant') || this._storyFlags.has('villain:scheme'))) {
+                villainQuest.progress = 1;
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────
@@ -1883,27 +2088,62 @@ export class GameEngine {
     }
 
     /**
-     * 生成系统个性消息
+     * Bug #7: 生成系统个性消息（增强网文风格）
      */
     _generateSystemMessage(age) {
         if (!this._system) return null;
 
         const messages = [];
         const sys = this._system;
+        const sysId = sys.id;
 
-        // 特殊年龄节点消息
+        // 特殊年龄节点消息（网文风格）
         if (age === 0) {
             messages.push(sys.greeting || `【${sys.name}】已绑定，开始你的人生吧！`);
         } else if (age === 18) {
-            messages.push(`【${sys.name}】恭喜成年！更多系统功能已解锁。`);
+            const adultMessages = {
+                cultivation: `【${sys.name}】"汝已成年，灵根初成，正式踏入修行之路。记住，修仙者，逆天而行。"`,
+                villain: `【${sys.name}】"哟，成年了？终于不是个毛头小子了。从今天开始，你的反派人生才刚刚开始！"`,
+                tycoon: `【${sys.name}】"宿主大人成年啦！从今天起，您的每一笔投资都将获得系统加成！小的好激动！"`,
+                apocalypse: `【${sys.name}】——成年判定通过——你已具备独立生存能力。生存概率重新计算中……注意：成年意味着更大的威胁。`,
+                signin: `【${sys.name}】"恭喜宿主成年！签到系统升级啦！从今天起解锁成人签到奖池，奖励更丰厚哦～✨"`,
+            };
+            messages.push(adultMessages[sysId] || `【${sys.name}】恭喜成年！更多系统功能已解锁。`);
         } else if (age % 10 === 0 && age > 0) {
             const decade = age / 10;
-            const comments = [
+            const decadeMessages = {
+                cultivation: [
+                    `【${sys.name}】${decade}个甲子弹指一挥间。修行路漫漫，望汝不忘初心。`,
+                    `【${sys.name}】又一轮修行过去了。汝之修为……尚可。`,
+                    `【${sys.name}】光阴似箭，转眼已过${age}载。道心是否依旧坚定？`,
+                ],
+                villain: [
+                    `【${sys.name}】${age}岁了，你的实力终于不那么难看了。勉强吧。`,
+                    `【${sys.name}】又十年过去了。废物，你还活着呢？算你运气好。`,
+                    `【${sys.name}】${age}岁……嗯，总算有点反派的气势了。继续。`,
+                ],
+                tycoon: [
+                    `【${sys.name}】宿主大人${age}岁生日快乐！您的资产又创新高了！小的好崇拜您！`,
+                    `【${sys.name}】${age}年的商业传奇！宿主大人您太了不起了！`,
+                    `【${sys.name}】又一个十年过去了，宿主大人的商业帝国越来越辉煌了！`,
+                ],
+                apocalypse: [
+                    `【${sys.name}】——存活${age}年——生存记录：优秀。继续保持警戒。`,
+                    `【${sys.name}】${age}年了。在末世中活这么久不容易。别松懈。`,
+                    `【${sys.name}】又活过了十年。生存概率已更新。不要大意。`,
+                ],
+                signin: [
+                    `【${sys.name}】哇！宿主已经签到${age}年了！超级签到达人！奖励送上～✨`,
+                    `【${sys.name}】${age}年连续签到成就达成！系统为你准备了特别奖励！`,
+                    `【${sys.name}】第${decade}个十年签到纪念日！你是签到之王！🎉`,
+                ],
+            };
+            const pool = decadeMessages[sysId] || [
                 `【${sys.name}】${decade}0 岁了，时光飞逝。`,
                 `【${sys.name}】又一个十年过去了，继续加油。`,
                 `【${sys.name}】人生第 ${decade} 个十年，精彩继续。`,
             ];
-            messages.push(pickRandom(comments));
+            messages.push(pickRandom(pool));
         }
 
         return messages.length > 0 ? messages.join(' ') : null;
@@ -2088,7 +2328,7 @@ export class GameEngine {
     }
 
     /**
-     * 生成系统专属叙事片段
+     * Bug #7: 生成系统专属叙事片段（增强网文小说风格）
      */
     _generateSystemNarrative(age, props) {
         if (!this._system) return null;
@@ -2096,34 +2336,51 @@ export class GameEngine {
         const sysName = this._system.name;
 
         // 只在部分年份触发，避免刷屏
-        if (Math.random() > 0.35) return null;
+        if (Math.random() > 0.40) return null;
 
-        // 根据系统类型生成特色叙事
+        // 根据系统类型生成特色叙事（网文风格）
         const narratives = {
             signin: [
-                `【${sysName}】叮！签到成功，获得了系统积分。`,
-                `【${sysName}】连续签到奖励：今日份的好运已送达。`,
-                `【${sysName}】签到暴击！奖励翻倍！`,
-                `【${sysName}】签到系统提醒你：今天也要元气满满哦。`,
+                `【${sysName}】叮！签到成功，获得了系统积分。今日运势：大吉！`,
+                `【${sysName}】连续签到奖励：今日份的好运已送达。"宿主，记得每天来打卡哦～"`,
+                `【${sysName}】签到暴击！奖励翻倍！系统欢快地发出了金色光芒。`,
+                `【${sysName}】签到系统提醒你：今天也要元气满满哦。顺便一提，你的签到连击数又创新高了！`,
+                `【${sysName}】"恭喜宿主，今日签到获得隐藏奖励！"系统的声音里带着难以掩饰的兴奋。`,
+                `【${sysName}】签到排行榜更新！你的排名又上升了三位，距离传说级签到者只差一步之遥。`,
             ],
             cultivation: [
-                `【${sysName}】你感受到一股灵气涌入体内，修为有所精进。`,
-                `【${sysName}】修炼中你隐约触摸到了更高境界的门槛。`,
-                `【${sysName}】系统检测到你的灵根资质有所提升。`,
-                `【${sysName}】一本古老的功法在你脑海中浮现。`,
-                `【${sysName}】你在修炼中领悟了一丝天地法则。`,
+                `【${sysName}】你盘膝而坐，感受到一股灵气涌入体内，丹田微微发热，修为有所精进。`,
+                `【${sysName}】修炼中你隐约触摸到了更高境界的门槛，仿佛有一层薄纱即将被捅破。`,
+                `【${sysName}】"汝之灵根资质有所提升。"系统的声音在脑海中回荡，冷冽如九天之上的寒风。`,
+                `【${sysName}】一本古老的功法在你脑海中浮现，字字珠玑，每一个字都蕴含着天地至理。`,
+                `【${sysName}】你在修炼中领悟了一丝天地法则，周身气势为之一变，仿佛脱胎换骨。`,
+                `【${sysName}】灵台清明，你隐约感受到了天劫的气息。系统冷然道："莫要得意忘形，修行路远。"`,
+                `【${sysName}】你在洞府中闭关三日，出关时修为精进一层，身上隐约有仙气环绕。`,
+                `【${sysName}】门派传来消息，有一处秘境即将开启。系统道："此乃机缘，不可错过。"`,
             ],
             tycoon: [
-                `【${sysName}】系统发放返利：一笔资金已到账。`,
-                `【${sysName}】你获得了一个独家投资信息。`,
-                `【${sysName}】VIP 会员专属福利已发放。`,
-                `【${sysName}】系统分析了最近的市场趋势，为你推荐了一个项目。`,
+                `【${sysName}】"宿主大人！今天的返利到账了！"系统献媚地说道，一笔资金悄然入账。`,
+                `【${sysName}】系统为你获取了一条独家投资信息，据说稳赚不赔。"宿主大人英明神武！"`,
+                `【${sysName}】VIP会员专属福利已发放。系统热切地说："宿主大人的每一分消费都是投资！"`,
+                `【${sysName}】系统分析了最近的市场趋势，为你推荐了一个暴利项目。"小的为宿主鞍前马后！"`,
+                `【${sysName}】你的商业帝国版图又扩大了一块。系统激动得声音都在颤抖："宿主大人太厉害了！"`,
+                `【${sysName}】一位神秘的合作伙伴找上了你。系统兴奋道："这是顶级资源，宿主快把握住！"`,
             ],
             apocalypse: [
-                `【${sysName}】远处传来丧尸的嘶吼声。`,
-                `【${sysName}】你在废墟中找到了一些有用的物资。`,
-                `【${sysName}】幸存者基地的防线似乎又加固了一些。`,
-                `【${sysName}】系统探测到附近有一个未开发的安全区域。`,
+                `【${sysName}】——扫描完毕——远处传来丧尸的嘶吼声，建议保持警戒状态。生存概率微调：+0.3%。`,
+                `【${sysName}】你在废墟中翻找到一些有用的物资。系统冷冷道："够活一周。别浪费。"`,
+                `【${sysName}】幸存者基地的防线似乎又加固了一些。系统："防御等级提升，但仍不足以抵御大规模尸潮。"`,
+                `【${sysName}】系统探测到附近有一个未开发的安全区域。"前往？风险系数：中等。收益：可观。你选。"`,
+                `【${sysName}】一群变异兽从远处掠过，所幸没有发现你的踪迹。系统："运气不会永远站在你这边。"`,
+                `【${sysName}】夜晚的废墟格外安静，但系统检测到地下有异常辐射波动。"保持警觉。"`,
+            ],
+            villain: [
+                `【${sysName}】有人在背后议论你，系统冷笑道："又是些蝼蚁，让他们先得意，秋后算账的时候自然会到。"`,
+                `【${sysName}】你的势力范围又扩大了一些。系统毒舌道："就这？离真正的大反派还差得远呢。"`,
+                `【${sysName}】又有人想要挑战你的地位。系统不屑地说："废物，连给你提鞋都不配。"`,
+                `【${sysName}】你在暗中布下的棋子开始发挥作用。系统难得赞许："嗯，总算有点反派的样子了。"`,
+                `【${sysName}】那个所谓的主角又在你面前装逼。系统冷冷道："让他蹦跶，反派从来都是笑到最后的那个。"`,
+                `【${sysName}】你收到一份来自暗处的效忠信。系统勉强道："看来你的威名开始传开了。勉勉强强吧。"`,
             ],
         };
 
@@ -2134,10 +2391,10 @@ export class GameEngine {
 
         // 通用系统叙事
         const generic = [
-            `【${sysName}】系统正在运行中，一切正常。`,
-            `【${sysName}】系统为你提供了一些额外的辅助。`,
-            `【${sysName}】"继续前进吧，我会在背后支持你。"`,
-            `【${sysName}】系统记录了你最近的成长轨迹。`,
+            `【${sysName}】系统正在运行中，一切正常。你的人生轨迹正在被系统记录。`,
+            `【${sysName}】系统为你提供了一些额外的辅助。"继续前进吧。"`,
+            `【${sysName}】"继续前进吧，我会在背后支持你。"系统的声音在脑海中回荡。`,
+            `【${sysName}】系统记录了你最近的成长轨迹，并进行了一次全面评估。`,
         ];
         return pickRandom(generic);
     }

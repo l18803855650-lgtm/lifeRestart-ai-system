@@ -2224,8 +2224,290 @@ ul, ol { list-style: none; }
   opacity: 0.7;
 }
 
-@media (min-width: 768px) {
-  .life-side-panels {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+/* ============================================================
+   25. INLINE STATS DISPLAY (Bug #2)
+   ============================================================ */
+
+.stats-inline {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
+
+.stats-inline .stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.stats-inline .stat-chip .stat-icon {
+  font-size: 0.72rem;
+}
+
+.stats-inline .stat-chip .stat-val {
+  font-weight: 700;
+  color: var(--text-accent);
+}
+
+.custom-stats-inline {
+  padding: 0 16px 4px;
+  justify-content: flex-start;
+}
+
+/* ============================================================
+   26. COLLAPSIBLE YEAR BLOCKS (Bug #1)
+   ============================================================ */
+
+.year-block {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-glass);
+  margin-bottom: 0;
+}
+
+.year-block-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.year-block-header:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.year-block-header .age-tag {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--text-accent);
+  min-width: 40px;
+}
+
+.year-block-header .year-preview {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.year-block-header .year-toggle {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.year-block.expanded .year-toggle {
+  transform: rotate(180deg);
+}
+
+.year-block-body {
+  display: none;
+  padding: 6px 14px 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.year-block.expanded .year-block-body {
+  display: block;
+}
+
+/* Auto-expand latest 3 blocks */
+.year-block:last-child,
+.year-block:nth-last-child(2),
+.year-block:nth-last-child(3) {
+  /* handled by JS */
+}
+
+/* ============================================================
+   27. TAB NAVIGATION (Bug #4)
+   ============================================================ */
+
+.sim-tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.sim-tab-panel {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.sim-tab-panel.active {
+  display: block;
+}
+
+.tab-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab-panel-title {
+  font-size: 1.1rem;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.sim-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color);
+}
+
+.sim-footer-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sim-tab-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  position: relative;
+}
+
+.sim-tab-btn.active {
+  color: var(--text-accent);
+}
+
+.sim-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  height: 2px;
+  background: var(--accent-primary);
+  border-radius: 2px;
+}
+
+.sim-footer-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  align-items: center;
+}
+
+.sim-footer-actions .btn {
+  flex: 0;
+}
+
+.sim-footer-actions .btn-primary {
+  flex: 1;
+}
+
+/* ============================================================
+   28. QUEST SYSTEM (Bug #6)
+   ============================================================ */
+
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quest-card {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+}
+
+.quest-card.quest-main {
+  border-color: var(--border-glow);
+}
+
+.quest-card.quest-side {
+  border-color: var(--border-color);
+}
+
+.quest-card.quest-completed {
+  opacity: 0.6;
+}
+
+.quest-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.quest-card-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.quest-card-type {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--accent-gradient);
+  color: #fff;
+}
+
+.quest-card-type.side {
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.quest-card-desc {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.quest-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.quest-progress-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--stat-bar-bg);
+  overflow: hidden;
+}
+
+.quest-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-primary);
+  transition: width 0.4s ease;
+}
+
+.quest-reward {
+  font-size: 0.78rem;
+  color: var(--text-accent);
+  margin-top: 4px;
 }
