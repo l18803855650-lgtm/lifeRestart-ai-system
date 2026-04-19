@@ -145,6 +145,8 @@ const EVENTS_BABY = [
     { text: '你把碗里的粥扣在了头上，还冲着妈妈笑。', importance: 1 },
     { text: '你在学步车里疯狂冲刺，吓得家里的猫躲到了柜子顶上。', importance: 1 },
     { text: '深夜你哭闹不止，全家轮流抱你到天亮。', importance: 1 },
+    { text: '你在睡梦中露出了天使般的微笑，全家人都被萌化了。', importance: 1 },
+    { text: '你第一次抓住了父亲的手指，握得出奇地紧。', importance: 1 },
 ];
 
 /**
@@ -159,6 +161,8 @@ const EVENTS_KINDERGARTEN = [
     { text: '你学会了骑三轮车，骄傲得像开了一辆法拉利。', importance: 1 },
     { text: '你问妈妈"我是从哪里来的"，妈妈支支吾吾半天。', importance: 1 },
     { text: '你把邻居家的花全拔了，说是要送给妈妈当礼物。', importance: 1 },
+    { text: '你在幼儿园的涂鸦墙上画了一条大鲤鱼，老师说很有创意。', importance: 1 },
+    { text: '你学会了整理自己的小书包，妈妈很欣慰。', importance: 1 },
 ];
 
 /**
@@ -175,6 +179,9 @@ const EVENTS_PRIMARY = [
     { text: '你养了一只蚕宝宝，每天小心翼翼地喂桑叶。', importance: 1 },
     { text: '你在课堂上偷看漫画被老师没收了，心疼了好几天。', importance: 1 },
     { text: '你学会了游泳，在水里像一条欢快的小鱼。', importance: 1, condition: { STR: 4 } },
+    { text: '你在科学课上做的火山模型喷发了，全班都惊呆了。', importance: 1, condition: { INT: 4 } },
+    { text: '你第一次独自坐公交车去上学，感觉自己像个大人。', importance: 1 },
+    { text: '你在书法比赛中获得了优秀奖，字写得越来越好看了。', importance: 1, condition: { INT: 5 } },
 ];
 
 /**
@@ -191,6 +198,9 @@ const EVENTS_MIDDLE = [
     { text: '你在黑板报比赛中为班级赢得了一等奖。', importance: 1 },
     { text: '你和父母发生了一次激烈的争吵，感受到了成长的阵痛。', importance: 2 },
     { text: '你在期末考试中进步了二十名，自信心大增。', importance: 2, condition: { INT: 5 } },
+    { text: '你在科技节上展示了自己制作的机器人，引来众多围观。', importance: 2, condition: { INT: 6 } },
+    { text: '你开始写日记，记录生活中的点点滴滴。', importance: 1 },
+    { text: '你在一次班级辩论赛中表现出色，逻辑清晰让对手哑口无言。', importance: 2, condition: { INT: 6, CHR: 4 } },
 ];
 
 /**
@@ -207,6 +217,8 @@ const EVENTS_HIGH = [
     { text: '你在一次义工活动中，感受到了帮助他人的温暖。', importance: 1, condition: { SPR: 5 } },
     { text: '你因为偏科严重，咬牙报了补习班恶补。', importance: 1 },
     { text: '你在学校文艺汇演中表演了一个节目，掌声雷动。', importance: 1, condition: { CHR: 6 } },
+    { text: '你在数学建模比赛中带领团队获得了省级一等奖。', importance: 2, condition: { INT: 8 } },
+    { text: '你组建了一支乐队，在校园音乐节上大放异彩。', importance: 2, condition: { CHR: 6, SPR: 5 } },
 ];
 
 /**
@@ -223,6 +235,9 @@ const EVENTS_COLLEGE = [
     { text: '你通宵打游戏挂了两门课，被辅导员约谈了。', importance: 1, condition: { INT: [0, 4] } },
     { text: '你利用暑假去支教，在山区度过了难忘的一个月。', importance: 2, condition: { SPR: 5 } },
     { text: '你的毕业论文被评为优秀，导师邀请你继续深造。', importance: 2, condition: { INT: 8 } },
+    { text: '你的一篇课程论文被学术期刊选中发表了。', importance: 2, condition: { INT: 8 } },
+    { text: '你和室友们一起通宵准备创新创业大赛，最终杀入了全国决赛。', importance: 2, condition: { INT: 6, MNY: 4 } },
+    { text: '你在海外交流项目中开阔了眼界，对世界有了新的理解。', importance: 2, condition: { INT: 5, MNY: 5 } },
 ];
 
 /**
@@ -239,6 +254,9 @@ const EVENTS_YOUNG_ADULT = [
     { text: '你在周末学了一门新技能，给生活增添了不少乐趣。', importance: 1 },
     { text: '你父母开始催婚，每次回家都要经历"灵魂拷问"。', importance: 1 },
     { text: '你独自去旅行了一趟，在陌生的城市里找到了内心的平静。', importance: 1, condition: { SPR: 4 } },
+    { text: '你的副业收入超过了主业，开始认真思考全职转型。', importance: 2, condition: { INT: 6, MNY: 5 } },
+    { text: '你在健身房坚持了整整一年，身材发生了惊人的变化。', importance: 1, condition: { STR: 5 } },
+    { text: '你买了人生第一辆车，虽然是二手的但你格外珍惜。', importance: 1, condition: { MNY: 4 } },
 ];
 
 /**
@@ -255,6 +273,9 @@ const EVENTS_MIDDLE_AGE = [
     { text: '你在工作中做出了一个关键决策，为公司挽回了巨大损失。', importance: 2, condition: { INT: 8 } },
     { text: '你开始学习投资理财，为未来做打算。', importance: 1 },
     { text: '你经历了中年危机，开始思考人生的意义。', importance: 2 },
+    { text: '你被评选为行业年度十大杰出人物之一。', importance: 3, condition: { INT: 8, MNY: 7 } },
+    { text: '你的孩子在学校获了奖，你比自己得奖还开心。', importance: 1 },
+    { text: '你开始学习一门乐器，在繁忙中找到了内心的宁静。', importance: 1, condition: { SPR: 4 } },
 ];
 
 /**
@@ -271,6 +292,8 @@ const EVENTS_SENIOR = [
     { text: '你参加了同学聚会，大家都变了模样，只有笑声还是从前的味道。', importance: 1 },
     { text: '你开始写回忆录，记录这些年的酸甜苦辣。', importance: 1, condition: { INT: 6 } },
     { text: '你和老伴一起去了年轻时没来得及去的地方。', importance: 2 },
+    { text: '你把多年的人生经验写成了一本畅销书。', importance: 2, condition: { INT: 7, CHR: 5 } },
+    { text: '你学会了使用智能手机和社交媒体，与远方的朋友们重新取得了联系。', importance: 1 },
 ];
 
 /**
@@ -287,6 +310,8 @@ const EVENTS_OLD = [
     { text: '你经历了一次住院，家人寸步不离地陪在身边。', importance: 2, condition: { STR: [0, 4] } },
     { text: '你收到了一封来自远方的信，是年轻时帮助过的人的感谢。', importance: 2 },
     { text: '你看着窗外的夕阳，觉得这辈子虽有遗憾，但也很精彩。', importance: 2 },
+    { text: '你的自传出版了，虽然销量不大但每一个字都是真实的人生。', importance: 2, condition: { INT: 6 } },
+    { text: '你在公园的长椅上和一位陌生人聊了一个下午，觉得人与人之间的缘分真奇妙。', importance: 1 },
 ];
 
 /**
@@ -301,6 +326,8 @@ const EVENTS_ELDER = [
     { text: '你收到了政府颁发的"长寿之星"荣誉证书。', importance: 2 },
     { text: '你和老伙计在棋盘上再下了一局，胜负已不重要。', importance: 1 },
     { text: '你平静地度过了又一个春秋，感恩每一天的阳光。', importance: 1 },
+    { text: '你的曾孙出生了，你颤抖着抱起了这个小小的生命。', importance: 2 },
+    { text: '有人专程来拜访你，想要记录你传奇的一生。', importance: 2 },
 ];
 
 /**
@@ -410,6 +437,10 @@ const DEATH_REASONS = {
     random:  '命运无常，一场突如其来的意外带走了你。',
     madness: '理智在不可名状的低语中彻底崩塌，你被深渊吞没。',
     apocalypse: '末世的寒风吹熄了最后的火种，你倒在黎明之前。',
+    adventure: '你在一次冒险中永远地留在了远方，带着微笑和不悔。',
+    wealth: '你在富裕中安详离世，一生的积累化为了后人的福泽。',
+    glory: '你在荣耀的巅峰画上了句号，世人将铭记你的名字。',
+    peace: '你在亲人的环绕中平静地闭上了眼，没有遗憾。',
 };
 
 export function getDeathReasonText(reason) {
@@ -981,6 +1012,7 @@ export class GameEngine {
         const propertyChanges = {};
         let systemMessage = null;
         let task = null;
+        let encounter = null;
 
         // ── 1. 检查系统里程碑 ──
         const milestones = this._checkSystemMilestones(age);
@@ -1065,6 +1097,9 @@ export class GameEngine {
         // ── 7.5 Bug #6: 更新任务系统 ──
         this._updateQuestSystem(age);
 
+        // v3.0 Random encounter
+        encounter = this._generateRandomEncounter(age);
+
         // ── 8. 关键人生抉择 ──
         let decision = null;
         if (this._alive && age >= 12 && age - this._lastDecisionAge >= 4) {
@@ -1112,6 +1147,7 @@ export class GameEngine {
             propertyChanges,
             systemMessage,
             task: task ? this._buildTaskForUI(age, task) : undefined,
+            encounter: encounter || undefined,
             isEnd: !this._alive,
             deathReason: this._deathReason || undefined,
             properties: this.getProperties(),
@@ -2382,6 +2418,14 @@ export class GameEngine {
                 `【${sysName}】那个所谓的主角又在你面前装逼。系统冷冷道："让他蹦跶，反派从来都是笑到最后的那个。"`,
                 `【${sysName}】你收到一份来自暗处的效忠信。系统勉强道："看来你的威名开始传开了。勉勉强强吧。"`,
             ],
+            cthulhu: [
+                `【${sysName}】你在深夜听到了来自虚空的低语，那声音既恐惧又令人着迷。系统冷冷道："不要回应。"`,
+                `【${sysName}】你在古老的图书馆里发现了一本不可名状之书，系统警告："合上它。立刻。"`,
+                `【${sysName}】你的梦境中出现了不可名状的存在。系统："理智检定通过。这次。"`,
+                `【${sysName}】你感觉有什么东西在暗处注视着你。系统平静道："别回头。继续走。"`,
+                `【${sysName}】海边传来诡异的歌声，渔民们避之不及。系统："那不是风声。离海远点。"`,
+                `【${sysName}】你在旧宅地下室发现了奇怪的符文。系统："拍照记录，不要触碰。千万不要。"`,
+            ],
         };
 
         const pool = narratives[sysId];
@@ -2540,6 +2584,94 @@ export class GameEngine {
     /**
      * 死亡判定
      */
+    /**
+     * v3.0 Random encounter generation
+     * Returns an encounter object with choices, or null
+     */
+    _generateRandomEncounter(age) {
+        if (age < 5) return null;
+        if (Math.random() > 0.15) return null;
+
+        const encounters = [];
+
+        if (age >= 5 && age <= 15) {
+            encounters.push({
+                title: '🎁 神秘的礼物',
+                description: '你在路边发现了一个闪着微光的盒子，要打开吗？',
+                choices: [
+                    { text: '好奇打开', effect: { SPR: 1, INT: 1 }, result: '盒子里是一本有趣的书，你看得入了迷。' },
+                    { text: '交给大人', effect: { SPR: 1, CHR: 1 }, result: '大人夸你是个好孩子，奖励了你一颗糖。' },
+                ],
+            });
+        }
+
+        if (age >= 16 && age <= 30) {
+            encounters.push({
+                title: '🌟 偶遇贵人',
+                description: '一位气质不凡的陌生人突然对你说："年轻人，我看你骨骼惊奇..."',
+                choices: [
+                    { text: '洗耳恭听', effect: { INT: 2 }, result: '对方给了你一条改变思维的建议，你若有所悟。' },
+                    { text: '礼貌婉拒', effect: { SPR: 1 }, result: '你客气地谢绝了，继续自己的路。' },
+                ],
+            });
+            encounters.push({
+                title: '💰 投资机遇',
+                description: '一个看起来很靠谱的项目摆在你面前，需要一笔小投资。',
+                choices: [
+                    { text: '果断投入', effect: { MNY: 2, SPR: -1 }, result: '你下了注，回报丰厚！' },
+                    { text: '谨慎观望', effect: { SPR: 1 }, result: '你选择保守，虽然错过了但也避开了风险。' },
+                    { text: '深入调查', effect: { INT: 1, MNY: 1 }, result: '你仔细研究后做了精准投资，稳赚不赔。' },
+                ],
+            });
+        }
+
+        if (age >= 30 && age <= 60) {
+            encounters.push({
+                title: '🤝 合作邀请',
+                description: '一位老朋友找到你，想一起做一个大项目。',
+                choices: [
+                    { text: '全力以赴', effect: { MNY: 2, INT: 1, STR: -1 }, result: '项目成功了！你们都获得了丰厚的回报。' },
+                    { text: '量力而行', effect: { MNY: 1, SPR: 1 }, result: '你参与了部分工作，收益和压力都适中。' },
+                    { text: '婉言谢绝', effect: { SPR: 1 }, result: '你选择了安稳，朋友表示理解。' },
+                ],
+            });
+        }
+
+        if (age >= 50) {
+            encounters.push({
+                title: '📖 人生感悟',
+                description: '在一个安静的午后，你突然对人生有了新的感悟。',
+                choices: [
+                    { text: '写下这份感悟', effect: { INT: 1, SPR: 2 }, result: '你把这些思考记录了下来，内心感到前所未有的平静。' },
+                    { text: '与家人分享', effect: { CHR: 1, SPR: 1 }, result: '家人认真听着你的故事，眼里满是温暖。' },
+                ],
+            });
+        }
+
+        if (encounters.length === 0) return null;
+        return encounters[Math.floor(Math.random() * encounters.length)];
+    }
+
+    /**
+     * v3.0 Get achievements based on current game state
+     */
+    getAchievements() {
+        const props = this._properties;
+        const age = this._age;
+        return [
+            { id: 'first_step', name: '初来乍到', unlocked: age >= 0, icon: '👶' },
+            { id: 'school', name: '入学典礼', unlocked: age >= 6, icon: '🎒' },
+            { id: 'adult', name: '成年礼', unlocked: age >= 18, icon: '🎓' },
+            { id: 'midlife', name: '而立之年', unlocked: age >= 30, icon: '🏠' },
+            { id: 'senior', name: '知天命', unlocked: age >= 50, icon: '📚' },
+            { id: 'elder', name: '古稀之年', unlocked: age >= 70, icon: '🌅' },
+            { id: 'centenarian', name: '期颐之年', unlocked: age >= 100, icon: '💯' },
+            { id: 'strong_body', name: '体魄强健', unlocked: (props.STR || 0) >= 8, icon: '💪' },
+            { id: 'genius', name: '聪慧过人', unlocked: (props.INT || 0) >= 8, icon: '🧠' },
+            { id: 'wealthy', name: '腰缠万贯', unlocked: (props.MNY || 0) >= 8, icon: '💰' },
+        ];
+    }
+
     _checkDeath(age) {
         const props = this._properties;
         const custom = this._customStats;
@@ -2577,6 +2709,19 @@ export class GameEngine {
             const deathChance = yearsOver * 0.008; // 每超一年增加 0.8% 概率
             if (Math.random() < deathChance) {
                 return { isDead: true, reason: age > 90 ? 'oldAge' : 'random' };
+            }
+        }
+
+        // v3.0 Enhanced death reasons based on life
+        if (age > 80) {
+            if (Math.random() < 0.02 && props.MNY >= 8) {
+                return { isDead: true, reason: 'wealth' };
+            }
+            if (Math.random() < 0.02 && props.INT >= 8) {
+                return { isDead: true, reason: 'glory' };
+            }
+            if (Math.random() < 0.03 && props.SPR >= 6) {
+                return { isDead: true, reason: 'peace' };
             }
         }
 

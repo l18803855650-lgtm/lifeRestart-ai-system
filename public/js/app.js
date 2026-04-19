@@ -84,7 +84,7 @@ const TONE_OPTIONS = [
 ];
 
 // 版本号
-const VERSION = 'v2.0.0';
+const VERSION = 'v3.0.0';
 
 // ═══════════════════════════════════════════════════════════════
 // App 主应用类
@@ -153,6 +153,22 @@ class App {
         this._initStartPage();
 
         this.initialized = true;
+
+        // v3.0 Ripple effect on buttons
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn');
+            if (!btn) return;
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+            const rect = btn.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+            btn.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        });
+
         console.log(`[App] 人生重开 AI 系统 ${VERSION} 已启动`);
     }
 
@@ -368,6 +384,17 @@ class App {
         // 版本信息
         const versionEl = page.querySelector('.version-info');
         if (versionEl) versionEl.textContent = VERSION;
+
+        // v3.0 Tagline rotation
+        const taglines = page.querySelectorAll('.tagline-item');
+        if (taglines.length > 1) {
+            let tagIdx = 0;
+            setInterval(() => {
+                taglines[tagIdx].classList.remove('active');
+                tagIdx = (tagIdx + 1) % taglines.length;
+                taglines[tagIdx].classList.add('active');
+            }, 3000);
+        }
 
         // 标题淡入动画
         const title = page.querySelector('.title');
@@ -709,6 +736,14 @@ class App {
                         redrawBtn.textContent = `🔄 重新抽取（${this._talentRedrawsLeft}）`;
                     }
                     this.showToast('天赋已揭晓！请选择最多3个天赋', 'info');
+                    // v3.0 Rarity announcement
+                    const maxGrade = Math.max(...this._drawnTalents.map(t => t.grade || 0));
+                    if (maxGrade >= 3) {
+                        const gradeNames = { 3: '史诗天赋', 4: '传说天赋' };
+                        const announce = _createElement('div', 'rarity-announce', `✨ 获得${gradeNames[maxGrade] || '稀有天赋'}！✨`);
+                        document.body.appendChild(announce);
+                        setTimeout(() => announce.remove(), 1500);
+                    }
                 };
 
         // 十连抽按钮
@@ -1079,6 +1114,19 @@ class App {
             chatBtn.onclick = () => this.navigateTo('page-chat');
         }
 
+        // v3.0 Fast forward
+        const ffBtn = page.querySelector('#btn-fast-forward');
+        if (ffBtn) {
+            this._fastForwardActive = false;
+            ffBtn.onclick = () => {
+                this._fastForwardActive = !this._fastForwardActive;
+                ffBtn.classList.toggle('active', this._fastForwardActive);
+                if (this._fastForwardActive) {
+                    this._runFastForward(nextYearBtn);
+                }
+            };
+        }
+
         if (saveBtn) {
             saveBtn.onclick = () => {
                 if (this._persistProgress({ manual: true })) {
@@ -1209,7 +1257,20 @@ class App {
             if (!items.length) {
                 inventorySummary.textContent = '尚未获得关键物品';
             } else {
-                inventorySummary.innerHTML = `<div class="info-chip-row">${items.slice(0, 12).map(item => `<span class="info-chip">${_escapeHtml(item.name)}${item.rarity ? ` · ${_escapeHtml(item.rarity)}` : ''}</span>`).join('')}</div>`;
+                const itemIcons = { common: '📦', rare: '💎', epic: '🌟', legendary: '👑' };
+                const groups = {};
+                items.forEach(item => {
+                    const r = item.rarity || 'common';
+                    if (!groups[r]) groups[r] = [];
+                    groups[r].push(item);
+                });
+                const rarityOrder = ['legendary', 'epic', 'rare', 'common'];
+                const rarityLabels = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传说' };
+                inventorySummary.innerHTML = `<div class="inventory-categories">${
+                    rarityOrder.filter(r => groups[r]).map(r => `<div class="inv-category"><div class="inv-category-title">${itemIcons[r] || '📦'} ${rarityLabels[r] || r}</div><div class="inv-items">${
+                        groups[r].map(item => `<span class="inv-item rarity-${r}"><span class="item-icon">${itemIcons[r] || '📦'}</span>${_escapeHtml(item.name)}</span>`).join('')
+                    }</div></div>`).join('')
+                }</div>`;
             }
         }
 
@@ -1218,7 +1279,21 @@ class App {
             if (!relations.length) {
                 relationshipSummary.textContent = '你的人生故事还没有重要人物登场';
             } else {
-                relationshipSummary.innerHTML = `<div class="info-list">${relations.map(rel => `<div class="info-list-item"><strong>${_escapeHtml(rel.name)}</strong><span>好感 ${_escapeHtml(String(rel.attitude ?? 0))}</span></div>`).join('')}</div>`;
+                const avatarEmojis = ['👨', '👩', '👴', '👵', '🧑', '👦', '👧', '🧔', '👱', '🤵'];
+                relationshipSummary.innerHTML = `<div class="relation-cards">${relations.map((rel, i) => {
+                    const att = Math.max(0, Math.min(100, (rel.attitude ?? 0)));
+                    const avatar = avatarEmojis[i % avatarEmojis.length];
+                    return `<div class="relation-card">
+                        <span class="relation-avatar">${avatar}</span>
+                        <div class="relation-info">
+                            <div class="relation-name">${_escapeHtml(rel.name)}</div>
+                            <div class="relation-affinity">
+                                <div class="affinity-bar"><div class="affinity-fill" style="width:${att}%"></div></div>
+                                <span class="affinity-val">${att}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')}</div>`;
             }
         }
     }
@@ -1231,6 +1306,14 @@ class App {
 
         // Bug #1: 可折叠的年度面板
         const yearBlock = _createElement('div', 'year-block');
+
+        // v3.0 Year block mood coloring
+        const hasMilestone = (result.events || []).some(e => e.type === 'milestone');
+        const hasNegative = (result.events || []).some(e => e.type === 'death' || e.type === 'aging');
+        const hasPositive = (result.events || []).some(e => e.importance >= 3 && e.type !== 'death');
+        if (hasMilestone) yearBlock.setAttribute('data-mood', 'milestone');
+        else if (hasNegative) yearBlock.setAttribute('data-mood', 'negative');
+        else if (hasPositive) yearBlock.setAttribute('data-mood', 'positive');
 
         // 生成预览文本（第一个事件的简短描述）
         const firstEvent = (result.events || [])[0];
@@ -1276,6 +1359,32 @@ class App {
                 choiceDiv.appendChild(btn);
             });
             body.appendChild(choiceDiv);
+        }
+
+        // v3.0 Random encounter display
+        if (result.encounter && !rerendering) {
+            const enc = result.encounter;
+            const encDiv = _createElement('div', 'encounter-inline');
+            encDiv.innerHTML = `<div class="event-item event-special"><strong>${_escapeHtml(enc.title)}</strong> ${_escapeHtml(enc.description)}</div>`;
+            const encChoices = _createElement('div', 'choice-container');
+            (enc.choices || []).forEach(choice => {
+                const btn = _createElement('button', 'btn-choice', _escapeHtml(choice.text));
+                btn.onclick = () => {
+                    encChoices.querySelectorAll('.btn-choice').forEach(b => b.disabled = true);
+                    btn.classList.add('selected');
+                    if (choice.effect) {
+                        for (const [k, v] of Object.entries(choice.effect)) {
+                            gameEngine.applyExternalEffects({ [k]: v }, { source: '随机事件' });
+                        }
+                    }
+                    body.appendChild(_createElement('div', 'event-item event-choice-result', _escapeHtml(choice.result)));
+                    this._updateSimulationUI();
+                    this._persistProgress();
+                };
+                encChoices.appendChild(btn);
+            });
+            body.appendChild(encDiv);
+            body.appendChild(encChoices);
         }
 
         if (result.propertyChanges) {
@@ -1433,8 +1542,14 @@ class App {
         // Bug #5: 始终设置 AI 服务（无论是否已配置，chatTerminal 内部会降级）
         chatTerminal.setAIService(aiService);
 
-        // 设置系统人格（如果有活跃系统）
+        // v3.0 Update chat avatar
         const activeSystem = systemManager.getActiveSystem();
+        const chatAvatar = page.querySelector('#chat-system-avatar');
+        if (chatAvatar && activeSystem) {
+            chatAvatar.textContent = activeSystem.emoji || '🤖';
+        }
+
+        // 设置系统人格（如果有活跃系统）
         if (activeSystem && !chatTerminal.systemPersonality) {
             chatTerminal.setPersonality({
                 tone: activeSystem.tone || 'cheerful',
@@ -1604,6 +1719,12 @@ class App {
             this._animateNumber(scoreDisplay, 0, lifeScore, 1500);
         }
 
+        // v3.0 Score ring wrapper
+        if (scoreDisplay) {
+            const ringDeg = Math.min(360, Math.round((lifeScore / 120) * 360));
+            scoreDisplay.parentElement?.style.setProperty('--ring-deg', ringDeg + 'deg');
+        }
+
         // 评价显示
         if (judgeDisplay) {
             const judgeObj = typeof judgeResult === 'object' ? judgeResult : { emoji: '🎭', text: judgeResult };
@@ -1681,6 +1802,23 @@ class App {
             }
         }
 
+        // v3.0 Achievements display
+        const achievementsDisplay = page.querySelector('#achievements-display');
+        if (achievementsDisplay) {
+            const achievements = this._computeAchievements(finalStats, lifeScore);
+            if (achievements.length > 0) {
+                achievementsDisplay.innerHTML = achievements.map(ach => `
+                    <div class="achievement-badge${ach.unlocked ? '' : ' locked'}">
+                        <span class="ach-icon">${ach.icon}</span>
+                        <span class="ach-name">${_escapeHtml(ach.name)}</span>
+                        <span class="ach-desc">${_escapeHtml(ach.desc)}</span>
+                    </div>
+                `).join('');
+            } else {
+                achievementsDisplay.innerHTML = '<p class="muted-text">暂无成就</p>';
+            }
+        }
+
         // 复制战报
         if (copyBtn) {
             copyBtn.onclick = async () => {
@@ -1733,6 +1871,55 @@ class App {
                 this._clearProgress();
                 this.navigateTo('page-start');
             };
+        }
+    }
+
+    /** v3.0 Compute achievements for summary */
+    _computeAchievements(stats, score) {
+        const props = stats.properties || {};
+        const age = stats.age || 0;
+        const achievements = [
+            { id: 'longevity', icon: '🧓', name: '长寿之星', desc: '活到70岁以上', unlocked: age >= 70 },
+            { id: 'centenarian', icon: '💯', name: '百岁传奇', desc: '活到100岁', unlocked: age >= 100 },
+            { id: 'genius', icon: '🧠', name: '天才头脑', desc: '智力达到8以上', unlocked: (props.INT || 0) >= 8 },
+            { id: 'rich', icon: '💰', name: '富甲一方', desc: '家境达到8以上', unlocked: (props.MNY || 0) >= 8 },
+            { id: 'beauty', icon: '💅', name: '倾国倾城', desc: '颜值达到8以上', unlocked: (props.CHR || 0) >= 8 },
+            { id: 'strong', icon: '💪', name: '铁骨铮铮', desc: '体质达到8以上', unlocked: (props.STR || 0) >= 8 },
+            { id: 'happy', icon: '😊', name: '快乐至上', desc: '快乐达到8以上', unlocked: (props.SPR || 0) >= 8 },
+            { id: 'legend', icon: '👑', name: '传奇人生', desc: '总评分达到100', unlocked: score >= 100 },
+            { id: 'allround', icon: '⭐', name: '全面发展', desc: '所有属性≥5', unlocked: Object.values(props).every(v => v >= 5) },
+            { id: 'milestone5', icon: '🏆', name: '里程碑收集者', desc: '达成5个里程碑', unlocked: (stats.milestones || []).length >= 5 },
+        ];
+        return achievements;
+    }
+
+    /** v3.0 Achievement celebration toast */
+    showAchievementToast(message) {
+        let container = _$('#toast-container');
+        if (!container) {
+            container = _createElement('div', 'toast-container');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+        const toast = _createElement('div', 'toast toast-achievement toast-enter', `🏆 ${_escapeHtml(message)}`);
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('toast-exit');
+            setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+        }, 4000);
+    }
+
+    /** v3.0 Fast forward auto-advance */
+    async _runFastForward(nextYearBtn) {
+        while (this._fastForwardActive && gameEngine.isAlive()) {
+            if (nextYearBtn) nextYearBtn.click();
+            await new Promise(r => setTimeout(r, 600));
+            if (!gameEngine.isAlive()) {
+                this._fastForwardActive = false;
+                const ffBtn = this.pages['page-life-simulation']?.querySelector('#btn-fast-forward');
+                if (ffBtn) ffBtn.classList.remove('active');
+                break;
+            }
         }
     }
 
