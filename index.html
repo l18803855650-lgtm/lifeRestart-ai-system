@@ -9,25 +9,39 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>人生重开 · AI系统版</title>
     <!-- PWA manifest could go here -->
-  <script type="module" crossorigin src="./assets/index-Buyd4IbR.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-ConHnh4R.css">
+  <script type="module" crossorigin src="./assets/index-DAafNwBu.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DYisGeGQ.css">
 </head>
 <body>
     <div id="app">
 
         <!-- ==================== 1. Start Page ==================== -->
         <div id="page-start" class="page active">
-            <div class="page-content">
+            <div class="page-content start-page-content">
+                <div class="floating-decorations">
+                    <span class="float-emoji" style="--delay:0s;--x:-30%;--y:-20%">✨</span>
+                    <span class="float-emoji" style="--delay:1.2s;--x:25%;--y:-30%">🎮</span>
+                    <span class="float-emoji" style="--delay:2.5s;--x:-35%;--y:30%">🎲</span>
+                    <span class="float-emoji" style="--delay:0.8s;--x:30%;--y:25%">🌟</span>
+                    <span class="float-emoji" style="--delay:1.8s;--x:-20%;--y:-35%">🔮</span>
+                    <span class="float-emoji" style="--delay:3.0s;--x:20%;--y:35%">💎</span>
+                </div>
                 <h1 class="game-title gradient-text">人生重开模拟器</h1>
                 <p class="game-subtitle">AI 系统版 · 无限流人生叙事引擎</p>
+                <div class="tagline-rotator">
+                    <span class="tagline-item active">🎲 天赋十连抽，开局即巅峰</span>
+                    <span class="tagline-item">🤖 AI驱动剧情，每局不同人生</span>
+                    <span class="tagline-item">⚔️ 修仙商战末世，多元系统任选</span>
+                    <span class="tagline-item">♾️ 无限可能，重开即重生</span>
+                </div>
                 <div class="start-features">
                     <span>🎲 天赋十连抽</span>
                     <span>🤖 AI驱动剧情</span>
                     <span>♾️ 无限可能</span>
                 </div>
-                <button id="btn-start" class="btn btn-primary btn-lg" aria-label="开始新人生">开始新人生</button>
+                <button id="btn-start" class="btn btn-primary btn-lg pulse-glow" aria-label="开始新人生">开始新人生</button>
                 <button id="btn-continue" class="btn btn-secondary btn-lg" aria-label="继续上次人生" style="display:none">继续上次人生</button>
-                <p class="version-info">v2.0.0 · Powered by AI</p>
+                <p class="version-info">v3.0.0 · Powered by AI</p>
             </div>
         </div>
 
@@ -170,6 +184,7 @@
 
         <!-- ==================== 6. Life Simulation Page ==================== -->
         <div id="page-life-simulation" class="page">
+            <!-- 顶部：年龄+系统+属性值（紧凑内联） -->
             <div class="sim-header">
                 <div class="age-display">
                     <span id="age-badge">0</span>
@@ -179,31 +194,41 @@
                     <span id="system-emoji"></span>
                     <span id="system-name"></span>
                 </div>
-                <div id="stats-bars" class="stats-bar-container"></div>
+                <div id="stats-inline" class="stats-inline"></div>
             </div>
-            <div id="sim-custom-stats" class="property-mini-display"></div>
-            <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
-            <div class="life-side-panels">
-                <section class="panel-card glass-card">
-                    <div class="panel-header">
-                        <h3>🎯 当前目标</h3>
-                        <span id="save-status" class="panel-tip">未存档</span>
+            <div id="sim-custom-stats-inline" class="stats-inline custom-stats-inline"></div>
+
+            <!-- 主内容区：根据当前 tab 显示不同内容 -->
+            <div id="sim-tab-content" class="sim-tab-content">
+                <!-- Tab: 人生日志 (默认) -->
+                <div id="tab-event-log" class="sim-tab-panel active">
+                    <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
+                </div>
+                <!-- Tab: 当前目标/任务 -->
+                <div id="tab-tasks" class="sim-tab-panel">
+                    <div class="tab-panel-inner">
+                        <h3 class="tab-panel-title">🎯 当前目标与任务</h3>
+                        <div id="current-task-summary" class="panel-body muted-text">暂无进行中的任务</div>
+                        <div id="quest-list" class="quest-list"></div>
                     </div>
-                    <div id="current-task-summary" class="panel-body muted-text">暂无进行中的任务</div>
-                </section>
-                <section class="panel-card glass-card">
-                    <div class="panel-header">
-                        <h3>🎒 资源与物品</h3>
+                </div>
+                <!-- Tab: 资源与物品 -->
+                <div id="tab-inventory" class="sim-tab-panel">
+                    <div class="tab-panel-inner">
+                        <h3 class="tab-panel-title">🎒 资源与物品</h3>
+                        <div id="inventory-summary" class="panel-body muted-text">尚未获得关键物品</div>
                     </div>
-                    <div id="inventory-summary" class="panel-body muted-text">尚未获得关键物品</div>
-                </section>
-                <section class="panel-card glass-card">
-                    <div class="panel-header">
-                        <h3>🤝 重要关系</h3>
+                </div>
+                <!-- Tab: 重要关系 -->
+                <div id="tab-relations" class="sim-tab-panel">
+                    <div class="tab-panel-inner">
+                        <h3 class="tab-panel-title">🤝 重要关系</h3>
+                        <div id="relationship-summary" class="panel-body muted-text">你的人生故事还没有重要人物登场</div>
                     </div>
-                    <div id="relationship-summary" class="panel-body muted-text">你的人生故事还没有重要人物登场</div>
-                </section>
+                </div>
             </div>
+
+            <!-- 任务弹窗（保留用于动态任务选择） -->
             <div id="task-overlay" class="task-overlay" style="display:none">
                 <div class="glass-card">
                     <h3 id="task-title"></h3>
@@ -212,17 +237,28 @@
                     <button id="btn-task-close" class="btn btn-secondary">稍后再说</button>
                 </div>
             </div>
+
+            <!-- 底部导航栏：所有按钮合并 -->
             <div class="sim-footer">
-                <button id="btn-save-game" class="btn btn-secondary" aria-label="保存当前进度">💾 保存进度</button>
-                <button id="btn-next-year" class="btn btn-primary btn-lg" aria-label="进入下一年">⏭️ 下一年</button>
-                <button id="btn-open-chat" class="btn btn-secondary" aria-label="打开系统对话">💬 对话系统</button>
+                <div class="sim-footer-tabs">
+                    <button class="sim-tab-btn active" data-tab="tab-event-log" aria-label="人生日志">📜</button>
+                    <button class="sim-tab-btn" data-tab="tab-tasks" aria-label="任务">🎯</button>
+                    <button class="sim-tab-btn" data-tab="tab-inventory" aria-label="物品">🎒</button>
+                    <button class="sim-tab-btn" data-tab="tab-relations" aria-label="关系">🤝</button>
+                </div>
+                <div class="sim-footer-actions">
+                    <button id="btn-save-game" class="btn btn-secondary btn-sm" aria-label="保存当前进度">💾</button>
+                    <button id="btn-fast-forward" class="btn btn-secondary btn-sm" aria-label="快进模式">⏩</button>
+                    <button id="btn-next-year" class="btn btn-primary" aria-label="进入下一年">⏭️ 下一年</button>
+                    <button id="btn-open-chat" class="btn btn-secondary btn-sm" aria-label="打开系统对话">💬</button>
+                </div>
             </div>
         </div>
 
         <!-- ==================== 7. Chat Page/Overlay ==================== -->
         <div id="page-chat" class="page chat-overlay">
             <div class="chat-header">
-                <h3>系统对话终端</h3>
+                <h3><span id="chat-system-avatar" class="chat-avatar">🤖</span> 系统对话终端</h3>
                 <button id="btn-chat-close" class="btn-close" aria-label="关闭对话">✕</button>
             </div>
             <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
@@ -268,6 +304,10 @@
                 <div class="glass-card">
                     <h3>人生里程碑</h3>
                     <div id="milestone-timeline" class="timeline"></div>
+                </div>
+                <div class="glass-card">
+                    <h3>🏅 成就一览</h3>
+                    <div id="achievements-display" class="achievements-grid"></div>
                 </div>
                 <div class="btn-group">
                     <button id="btn-copy-report" class="btn btn-secondary" aria-label="复制战报">📋 复制战报</button>
