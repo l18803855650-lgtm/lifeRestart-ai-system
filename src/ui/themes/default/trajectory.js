@@ -1,5 +1,6 @@
 import { formatTrajectoryLines } from '../../../ai/formatTrajectoryLines.js';
 import { lifeSystemAssistant } from '../../../ai/systemAssistant.js';
+import { lifeRunPanel } from '../../lifeRunPanel.js';
 
 export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
     constructor() {
@@ -49,6 +50,7 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
     #trajectoryItems;
     #talents;
     #enableExtend;
+    #maxVisibleItems = 6;
 
     init({propertyAllocate, talents, enableExtend}) {
         this.#enableExtend = enableExtend;
@@ -58,10 +60,18 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
         this.#trajectoryItems = [];
         this.#isEnd = false;
         this.#talents = talents;
+        this.#compressTopLayout();
         const startContent = core.start(propertyAllocate);
+        const startLines = formatTrajectoryLines(startContent);
         lifeSystemAssistant.resetRun({ talents, propertyAllocate, startContent });
+        lifeRunPanel.attach({
+            onNext: () => this.onNext(),
+            onSaveLoad: () => $ui.switchView(UI.pages.SAVELOAD, { returnPage: UI.pages.TRAJECTORY }),
+        });
+        lifeRunPanel.resetRun({ startContent, startLines });
         if(startContent?.length) {
-            this.renderTrajectory($lang.UI_System_Init, startContent);
+            this.renderTrajectory($lang.UI_System_Init, startContent, startLines);
+            lifeRunPanel.pushTrajectory({ age: $lang.UI_System_Init, content: startContent, lines: startLines });
         }
         this.updateProperty();
         this.onNext();
@@ -70,6 +80,7 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
     close() {
         this.scbSpeed.value = 0;
         this.speed = 0;
+        lifeRunPanel.detach();
         this.#trajectoryItems.forEach(item => {
             item.removeSelf();
             item.destroy();
@@ -92,38 +103,81 @@ export default class Trajectory extends ui.view.DefaultTheme.TrajectoryUI {
         if(this.#isEnd) return;
 
         const { age, content, isEnd } = core.next();
+        const lines = formatTrajectoryLines(content);
         this.#isEnd = isEnd;
 
         if(isEnd) {
             this.boxSpeed.visible = false;
             this.btnSummary.visible = true;
-            Laya.timer.frameOnce(1,this,()=>{
-                this.panelTrajectory.scrollTo(0, this.panelTrajectory.contentHeight);
-            });
         }
-        this.panelTrajectory.scrollTo(0, this.panelTrajectory.contentHeight);
-        this.renderTrajectory(age, content);
+        const item = this.renderTrajectory(age, content, lines);
         lifeSystemAssistant.pushTrajectory({ age, content });
+        lifeRunPanel.pushTrajectory({ age, content, lines });
+        void this.#enhanceTrajectoryItem({ age, content, lines, item });
 
         if(age >= 100) {
             this.boxParticle.visible = true;
         }
         this.updateProperty();
+        Laya.timer.frameOnce(1, this, () => {
+            this.panelTrajectory.scrollTo(0, this.panelTrajectory.contentHeight);
+        });
     }
 
-    renderTrajectory(age, content) {
+    renderTrajectory(age, content, lines = formatTrajectoryLines(content)) {
         const item = this.#createTrajectoryItem();
         item.labAge.text = ''+age;
-        item.labContent.text = formatTrajectoryLines(content).join('\n');
-        item.grade(content[content.length - 1].grade);
+        item.labContent.text = lines.join('\n');
+        item.grade(content[content.length - 1]?.grade);
         this.vboxTrajectory.addChild(item);
         this.#trajectoryItems.push(item);
+        while(this.#trajectoryItems.length > this.#maxVisibleItems) {
+            const stale = this.#trajectoryItems.shift();
+            stale.removeSelf();
+            stale.destroy();
+        }
         item.y = this.vboxTrajectory.height;
+        return item;
     }
 
     onSummary() {
         const talents = this.#talents;
         $ui.switchView(UI.pages.SUMMARY, {talents, enableExtend: this.#enableExtend});
+    }
+
+    #compressTopLayout() {
+        const propertyBoxes = [
+            this.labCharm?.parent?.parent,
+            this.labIntelligence?.parent?.parent,
+            this.labStrength?.parent?.parent,
+            this.labMoney?.parent?.parent,
+            this.labSpirit?.parent?.parent,
+        ].filter(Boolean);
+        propertyBoxes.forEach(box => {
+            const title = box.getChildByName('label');
+            const valueBox = box.getChildByName('propertyValue');
+            if(title) title.visible = false;
+            if(valueBox) {
+                valueBox.top = 10;
+                valueBox.bottom = 10;
+                valueBox.height = 66;
+            }
+            box.height = 86;
+        });
+        const topBox = this.labCharm?.parent?.parent?.parent;
+        if(topBox) topBox.height = 92;
+        if(this.boxTrajectory) this.boxTrajectory.top = 176;
+    }
+
+    async #enhanceTrajectoryItem({ age, content, lines, item }) {
+        const hasTenPull = content.some(({ type, kind, name }) => type === core.PropertyTypes.SYS && kind === 'abilityTick' && /十连抽|Ten Pull/i.test(name || ''));
+        if(!hasTenPull) return;
+        const rewardText = await lifeSystemAssistant.generateTenPullTalents({ age, lines });
+        if(!rewardText) return;
+        if(item && !item.destroyed) {
+            item.labContent.text = `${lines.join('\n')}\n${rewardText}`;
+        }
+        lifeRunPanel.applyTenPullReward({ age, rewardText });
     }
 
     get speed() {

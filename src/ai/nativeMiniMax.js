@@ -2,6 +2,17 @@ const DEFAULT_BASE_URL = 'https://api.minimaxi.com/v1';
 const DEFAULT_MODEL = 'MiniMax-M2.7-highspeed';
 const LOCAL_STORAGE_KEY = 'lifeRestart.ai.config';
 
+function readStoredConfig() {
+    if (typeof localStorage === 'undefined') return {};
+    return safeJsonParse(localStorage.getItem(LOCAL_STORAGE_KEY), {}) || {};
+}
+
+function maskApiKey(apiKey = '') {
+    if (!apiKey) return '';
+    const visible = `${apiKey}`.slice(-4);
+    return `••••••${visible}`;
+}
+
 function safeJsonParse(text, fallback = null) {
     try {
         return JSON.parse(text);
@@ -29,6 +40,21 @@ export function isAppAssetsOrigin() {
     return location.hostname === 'appassets.androidplatform.net' || location.protocol === 'file:';
 }
 
+async function probeSystemDialogueHealth() {
+    if (typeof fetch === 'undefined') return null;
+    try {
+        const options = { method: 'GET' };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+            options.signal = AbortSignal.timeout(2500);
+        }
+        const response = await fetch('/api/system-dialogue/health', options);
+        if (!response.ok) return null;
+        return safeJsonParse(await response.text(), null);
+    } catch {
+        return null;
+    }
+}
+
 export async function loadAiConfig() {
     const bridge = getAndroidBridge();
     if (bridge) {
@@ -43,13 +69,25 @@ export async function loadAiConfig() {
         };
     }
 
-    const stored = safeJsonParse(localStorage.getItem(LOCAL_STORAGE_KEY), {}) || {};
+    const stored = readStoredConfig();
+    if (stored.apiKey) {
+        return {
+            mode: 'browser-direct',
+            hasApiKey: true,
+            apiKeyMasked: maskApiKey(stored.apiKey),
+            baseUrl: stored.baseUrl || DEFAULT_BASE_URL,
+            model: stored.model || DEFAULT_MODEL,
+        };
+    }
+
+    const health = await probeSystemDialogueHealth();
+    const proxyReady = Boolean(health?.ok && health?.ready);
     return {
-        mode: 'server-proxy',
+        mode: proxyReady ? 'server-proxy' : 'browser-direct',
         hasApiKey: false,
         apiKeyMasked: '',
-        baseUrl: stored.baseUrl || DEFAULT_BASE_URL,
-        model: stored.model || DEFAULT_MODEL,
+        baseUrl: stored.baseUrl || health?.baseUrl || DEFAULT_BASE_URL,
+        model: stored.model || health?.model || DEFAULT_MODEL,
     };
 }
 
@@ -72,23 +110,46 @@ export async function saveAiConfig({ apiKey, baseUrl, model, clearApiKey = false
         };
     }
 
+    const current = readStoredConfig();
     const next = {
+        ...current,
         baseUrl: baseUrl || DEFAULT_BASE_URL,
         model: model || DEFAULT_MODEL,
     };
+    if (apiKey != null && apiKey !== '') next.apiKey = apiKey;
+    if (clearApiKey) delete next.apiKey;
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
-    return {
-        mode: 'server-proxy',
-        hasApiKey: false,
-        apiKeyMasked: '',
-        ...next,
-    };
+    return loadAiConfig();
 }
 
 export async function requestMiniMaxChat({ baseUrl = DEFAULT_BASE_URL, body }) {
     const bridge = getAndroidBridge();
     if (!bridge) {
-        throw new Error('当前环境不支持 APK 直连 MiniMax');
+        const stored = readStoredConfig();
+        if (!stored.apiKey) {
+            throw new Error('当前环境未保存 MiniMax API Key');
+        }
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${stored.apiKey}`,
+            },
+            body: JSON.stringify(body),
+        };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+            options.signal = AbortSignal.timeout(30000);
+        }
+        const response = await fetch(`${(baseUrl || stored.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '')}/chat/completions`, options);
+        const rawText = await response.text();
+        const data = safeJsonParse(rawText, null);
+        if (!response.ok) {
+            throw new Error(data?.error?.message || data?.message || `MiniMax 请求失败（HTTP ${response.status}）`);
+        }
+        if (!data) {
+            throw new Error('MiniMax 响应不是有效 JSON');
+        }
+        return data;
     }
     const raw = bridge.invokeMiniMaxChat(JSON.stringify({ baseUrl, body }));
     const data = safeJsonParse(raw, null);

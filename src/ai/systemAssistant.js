@@ -142,6 +142,74 @@ class LifeSystemAssistant {
         }
     }
 
+    openPanel(open = true) {
+        this.mount();
+        this.#togglePanel(open);
+    }
+
+    async generateTenPullTalents({ age = core.propertys?.AGE, lines = [] } = {}) {
+        if (!core.system) {
+            return this.#buildFallbackTenPullTalents('default');
+        }
+        const prompt = [
+            `现在是${age}岁，${core.system.name}刚触发一次十连抽。`,
+            `最近播报：${lines.join(' / ') || '系统十连抽触发。'}`,
+            '请只输出 3 行奖励播报，每行格式必须是「天赋名：一句说明」。',
+            '要求：符合当前系统对应的网文类型，像真正掉落出来的天赋；不要编号，不要解释，不要 markdown。',
+        ].join('\n');
+        const history = this.#state.messages
+            .filter(({ role }) => role === 'user' || role === 'assistant')
+            .slice(-6)
+            .map(({ role, content }) => ({ role, content }));
+        const context = {
+            phase: this.#state.phase,
+            system: clone(core.system),
+            properties: clone(core.propertys),
+            talents: clone(this.#state.talents),
+            recentTrajectory: clone(this.#state.recentTrajectory),
+            summary: clone(this.#state.summary),
+        };
+        const aiConfig = this.#state.aiConfig;
+        try {
+            if (this.#shouldUseAI(aiConfig, context, prompt)) {
+                const messages = buildSystemMessages({
+                    intent: 'create-talent',
+                    userMessage: prompt,
+                    history,
+                    context,
+                });
+                if (aiConfig.mode === 'android-direct' || aiConfig.mode === 'browser-direct') {
+                    const response = await requestMiniMaxChat({
+                        baseUrl: aiConfig.baseUrl,
+                        body: {
+                            model: aiConfig.model,
+                            temperature: 1,
+                            n: 1,
+                            max_tokens: 240,
+                            messages,
+                        },
+                    });
+                    const reply = compactText(response?.choices?.[0]?.message?.content || '');
+                    if (reply) return reply;
+                }
+                if (aiConfig.mode === 'server-proxy' && !hasAndroidMiniMaxBridge()) {
+                    const res = await fetch('/api/system-dialogue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ intent: 'create-talent', userMessage: prompt, history, context }),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok && data.reply) {
+                        return compactText(data.reply);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('十连抽 AI 生成失败，改用本地掉落：', error.message);
+        }
+        return this.#buildFallbackTenPullTalents(core.system?.id || 'default');
+    }
+
     async #requestReply({ intent, userMessage }) {
         const aiConfig = this.#state.aiConfig;
         const history = this.#state.messages
@@ -161,9 +229,9 @@ class LifeSystemAssistant {
         try {
             // 检查是否需要使用 AI
             if (this.#shouldUseAI(aiConfig, context, userMessage)) {
-                if (aiConfig.mode === 'android-direct') {
+                if (aiConfig.mode === 'android-direct' || aiConfig.mode === 'browser-direct') {
                     if (!aiConfig.hasApiKey) {
-                        throw new Error('请先点右上角”设置”，填入你自己的 MiniMax API Key');
+                        throw new Error('请先点右上角“设置”，填入你自己的 MiniMax API Key');
                     }
                     const messages = buildSystemMessages({ intent, userMessage, history, context });
                     const response = await requestMiniMaxChat({
@@ -182,7 +250,7 @@ class LifeSystemAssistant {
                     };
                 }
 
-                if (!isAppAssetsOrigin() || hasAndroidMiniMaxBridge()) {
+                if (aiConfig.mode === 'server-proxy' && (!isAppAssetsOrigin() || hasAndroidMiniMaxBridge())) {
                     const res = await fetch('/api/system-dialogue', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +277,7 @@ class LifeSystemAssistant {
      */
     #shouldUseAI(aiConfig, context, userMessage) {
         // 如果没有 API Key，不使用 AI
-        if (aiConfig.mode === 'android-direct' && !aiConfig.hasApiKey) {
+        if ((aiConfig.mode === 'android-direct' || aiConfig.mode === 'browser-direct') && !aiConfig.hasApiKey) {
             return false;
         }
 
@@ -289,15 +357,17 @@ class LifeSystemAssistant {
 
     #announceModeIfNeeded() {
         const { mode, hasApiKey } = this.#state.aiConfig;
-        if (mode === 'android-direct' && !hasApiKey && !this.#state.messages.some(({ content }) => content.includes('MiniMax API Key'))) {
-            this.#appendMessage('assistant', '这版是手机直连 MiniMax 的联网共创版，不走我的服务器。先点右上角“设置”，填入你自己的 MiniMax API Key，就能边玩边跟系统对话。');
+        if ((mode === 'android-direct' || mode === 'browser-direct') && !hasApiKey && !this.#state.messages.some(({ content }) => content.includes('MiniMax API Key'))) {
+            this.#appendMessage('assistant', mode === 'android-direct'
+                ? '这版是手机直连 MiniMax 的联网共创版，不走我的服务器。先点右上角“设置”，填入你自己的 MiniMax API Key，就能边玩边跟系统对话。'
+                : '这版支持浏览器直连 MiniMax。先点右上角“设置”，填入你自己的 MiniMax API Key，就能在网页里直接和系统对话。');
         }
     }
 
     #autoIntro() {
         if (this.#state.autoIntroDone || !core.system) return;
         if (this.#state.aiConfig.mode === 'loading') return;
-        if (this.#state.aiConfig.mode === 'android-direct' && !this.#state.aiConfig.hasApiKey) return;
+        if ((this.#state.aiConfig.mode === 'android-direct' || this.#state.aiConfig.mode === 'browser-direct') && !this.#state.aiConfig.hasApiKey) return;
         this.#state.autoIntroDone = true;
         setTimeout(() => {
             this.ask({ intent: 'intro', userMessage: '', showUser: false });
@@ -369,10 +439,15 @@ class LifeSystemAssistant {
             this.#elements.apiKey.value = '';
             this.#elements.settingsHint.textContent = this.#state.aiConfig.mode === 'android-direct'
                 ? '已保存到手机本地'
-                : '浏览器调试模式下只保存了 baseUrl/model';
+                : (this.#state.aiConfig.mode === 'browser-direct'
+                    ? '已保存到浏览器本地'
+                    : '当前使用服务端代理模式');
             this.#syncSettingsForm();
             this.#render();
-            this.#appendMessage('meta', `AI 设置已更新：${this.#state.aiConfig.model} / ${this.#state.aiConfig.mode === 'android-direct' ? '手机直连' : '本地代理'}`);
+            const modeLabel = this.#state.aiConfig.mode === 'android-direct'
+                ? '手机直连'
+                : (this.#state.aiConfig.mode === 'browser-direct' ? '浏览器直连' : '服务端代理');
+            this.#appendMessage('meta', `AI 设置已更新：${this.#state.aiConfig.model} / ${modeLabel}`);
             if (core.system && this.#state.aiConfig.hasApiKey && !this.#state.autoIntroDone) {
                 this.#autoIntro();
             }
@@ -417,11 +492,16 @@ class LifeSystemAssistant {
         if (!this.#elements.status) return;
         const system = core.system;
         const aiConfig = this.#state.aiConfig;
-        const canUseAi = aiConfig.mode !== 'loading' && (aiConfig.mode !== 'android-direct' || aiConfig.hasApiKey);
+        const canUseAi = aiConfig.mode !== 'loading' && (
+            aiConfig.mode === 'server-proxy'
+            || aiConfig.hasApiKey
+        );
         const shouldDisableAsk = this.#busy || !canUseAi;
         const modeText = aiConfig.mode === 'android-direct'
             ? (aiConfig.hasApiKey ? '手机直连 MiniMax' : '待配置 MiniMax Key')
-            : (aiConfig.mode === 'loading' ? '读取 AI 配置…' : '本地代理模式');
+            : (aiConfig.mode === 'browser-direct'
+                ? (aiConfig.hasApiKey ? '浏览器直连 MiniMax' : '待配置 MiniMax Key')
+                : (aiConfig.mode === 'loading' ? '读取 AI 配置…' : '服务端代理模式'));
 
         this.#elements.status.textContent = system
             ? `${system.name} · Lv.${system.level}`
@@ -433,10 +513,10 @@ class LifeSystemAssistant {
             button.disabled = shouldDisableAsk;
         });
         this.#elements.textarea.disabled = shouldDisableAsk;
-        this.#elements.textarea.placeholder = aiConfig.mode === 'android-direct' && !aiConfig.hasApiKey
+        this.#elements.textarea.placeholder = (aiConfig.mode === 'android-direct' || aiConfig.mode === 'browser-direct') && !aiConfig.hasApiKey
             ? '先点设置，填入你自己的 MiniMax API Key'
             : '问系统一句，比如：我这局该走修仙还是神豪？';
-        this.#elements.settingsBtn.style.display = aiConfig.mode === 'android-direct' ? 'inline-flex' : 'none';
+        this.#elements.settingsBtn.style.display = 'inline-flex';
     }
 
     #createDom() {
@@ -685,6 +765,37 @@ class LifeSystemAssistant {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    #buildFallbackTenPullTalents(systemId = 'default') {
+        const fallback = {
+            signin: [
+                '欧皇补签：漏掉的奖励被系统补发，今天开始每次签到都像捡钱。',
+                '暴击福袋：下一次小奖励也可能炸成双倍，白嫖体验直接起飞。',
+                '幸运存折：每攒一点系统点，都像往未来利滚利。',
+            ],
+            cultivation: [
+                '先天灵骨：经脉更顺，修炼时像有人替你开挂。',
+                '悟道碎片：关键时刻灵光一闪，卡境界时更容易顿悟。',
+                '护体灵纹：挨打也能顺势炼体，越打越像主角。',
+            ],
+            villain: [
+                '反派光环：你一开口，场子天然就偏向你。',
+                '截胡直觉：别人的机缘刚冒头，你先闻到味了。',
+                '心腹契约：更容易招到肯替你办脏活的人。',
+            ],
+            tycoon: [
+                '神豪返点：一次消费能带回更厚的返利回响。',
+                '圈层通行证：更容易混进高端局和资源场。',
+                '项目嗅觉：看到盘子就知道哪块肉最肥。',
+            ],
+            default: [
+                '主角预感：关键节点总能多看到一步。',
+                '气运偏转：倒霉事会自动给你绕路。',
+                '成长回响：每次选择都会留下一点后劲。',
+            ],
+        };
+        return (fallback[systemId] || fallback.default).join('\n');
     }
 }
 

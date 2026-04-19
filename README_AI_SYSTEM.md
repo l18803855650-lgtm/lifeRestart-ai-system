@@ -229,6 +229,7 @@ dynamicStatsManager.registerSystemSchema('my-system', {
 ### 4. 系统对话无内容
 - 确认已开始一局人生
 - 检查是否绑定了系统
+- 如果你是在 GitHub Pages / 静态网页里试玩，默认没有服务端代理；请点右上角“设置”填入你自己的 MiniMax API Key，再走浏览器直连
 - 尝试使用本地规则模式
 
 ## 性能优化

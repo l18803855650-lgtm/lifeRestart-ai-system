@@ -1,9 +1,10 @@
 export default class SaveLoad extends ui.view.SaveLoadUI {
     constructor() {
         super();
+        this.returnPage = UI.pages.MAIN;
         this.btnClose.on(Laya.Event.CLICK, this, async ()=>{
             await this.close();
-            $ui.switchView(UI.pages.MAIN);
+            $ui.switchView(this.returnPage || UI.pages.MAIN);
         });
         this.btnRead.on(Laya.Event.CLICK, this, async ()=>{
             const result = await $$copy(this.input.text = this.data);
@@ -131,7 +132,8 @@ export default class SaveLoad extends ui.view.SaveLoadUI {
         return ["images/atlas/images/radio.atlas"];
     }
 
-    init() {
+    init({ returnPage = UI.pages.MAIN } = {}) {
+        this.returnPage = returnPage;
         this.input.text = this.data;
     }
 
